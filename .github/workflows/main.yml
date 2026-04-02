@@ -60,12 +60,39 @@ jobs:
         echo "Android SDK contents:"
         ls -la $ANDROID_SDK_ROOT
     
+    - name: Explore Project Structure
+      run: |
+        echo "=== ROOT DIRECTORY ==="
+        ls -la
+        echo "=== ANDROID DIRECTORY ==="
+        ls -la android/
+        echo "=== SETTINGS.GRADLE ==="
+        cat settings.gradle.kts || cat settings.gradle || echo "No settings.gradle found"
+        echo "=== BUILD.GRADLE (ROOT) ==="
+        cat build.gradle.kts || cat build.gradle || echo "No build.gradle found"
+        if [ -f "android/build.gradle" ]; then
+          echo "=== ANDROID/BUILD.GRADLE ==="
+          head -50 android/build.gradle
+        fi
+    
     - name: Build Wallet Core Android with Gradle
       run: |
         echo "Starting Android build with Gradle..."
         cd android
-        ./gradlew assembleRelease --no-daemon --stacktrace
-        echo "Build completed!"
+        # Activer le mode verbose pour voir les vraies erreurs
+        ./gradlew assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build.log
+        BUILD_EXIT_CODE=$?
+        
+        # Si échec, afficher les dernières lignes avec contexte
+        if [ $BUILD_EXIT_CODE -ne 0 ]; then
+          echo "❌ BUILD FAILED"
+          echo "=== DERNIÈRES LIGNES DU LOG ==="
+          tail -100 build.log
+          echo "=== RECHERCHE DES ERREURS ==="
+          grep -i "error\|failed\|exception" build.log | tail -50
+        fi
+        
+        exit $BUILD_EXIT_CODE
     
     - name: Find Built AAR
       run: |
