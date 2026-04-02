@@ -14,7 +14,9 @@ jobs:
     - name: Checkout Wallet Core
       uses: actions/checkout@v4
       with:
-        ref: 4.6.3  # Version spécifique à compiler
+        repository: trustwallet/wallet-core
+        ref: 4.6.3
+        fetch-depth: 0  # Fetch all history for tags
     
     - name: Set up JDK 17
       uses: actions/setup-java@v4
