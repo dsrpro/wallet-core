@@ -128,9 +128,21 @@ jobs:
         cat settings.gradle.kts || cat settings.gradle || echo "No settings.gradle found"
         echo "=== BUILD.GRADLE (ROOT) ==="
         cat build.gradle.kts || cat build.gradle || echo "No build.gradle found"
+        
+        # Afficher TOUS les fichiers de config Gradle
+        echo "=== GRADLE PROPERTIES ==="
+        if [ -f "android/gradle.properties" ]; then
+          cat android/gradle.properties
+        fi
+        
+        echo "=== BUILD.GRADLE (ANDROID) ==="
         if [ -f "android/build.gradle" ]; then
-          echo "=== ANDROID/BUILD.GRADLE ==="
-          head -50 android/build.gradle
+          cat android/build.gradle
+        fi
+        
+        echo "=== WALLET-CORE BUILD.GRADLE ==="
+        if [ -f "android/wallet-core/build.gradle" ]; then
+          head -100 android/wallet-core/build.gradle
         fi
     
     - name: Build Wallet Core Android with Gradle
@@ -153,9 +165,21 @@ jobs:
         pwd
         ls -la
         
-        # Activer le mode verbose pour voir les vraies erreurs
+        # Vérifier quels modules sont disponibles
+        echo "=== AVAILABLE MODULES ==="
+        find . -maxdepth 2 -type d -name "*wallet*" -o -name "*library*" -o -name "*app*" | grep -v ".git" | sort
+        
+        # Essayer de compiler TOUS les modules (pas juste wallet-core)
+        echo "🔨 Starting full project build..."
         ./gradlew assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build.log
         BUILD_EXIT_CODE=$?
+        
+        # Si échec, essayer juste le module library
+        if [ $BUILD_EXIT_CODE -ne 0 ] && [ -d "library" ]; then
+          echo "⚠️ Full build failed, trying just :library module..."
+          ./gradlew :library:assembleRelease --no-daemon --stacktrace 2>&1 | tee build-library.log
+          BUILD_EXIT_CODE=$?
+        fi
         
         # Si échec, afficher les dernières lignes avec contexte
         if [ $BUILD_EXIT_CODE -ne 0 ]; then
