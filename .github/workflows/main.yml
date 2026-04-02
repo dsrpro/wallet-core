@@ -104,6 +104,41 @@ jobs:
         echo "📊 Boost version:"
         cat boost/version.hpp 2>/dev/null | grep "BOOST_VERSION" | head -1 || echo "Version file not found"
     
+    - name: Download Protobuf Sources
+      run: |
+        echo "📦 Downloading Protobuf sources for Wallet Core..."
+        
+        # Créer le dossier de destination
+        mkdir -p /home/runner/work/wallet-core/wallet-core/build/local/src/protobuf
+        cd /home/runner/work/wallet-core/wallet-core/build/local/src/protobuf
+        
+        # Télécharger Protobuf 3.20.3 (version requise par Wallet Core)
+        wget -q https://github.com/protocolbuffers/protobuf/releases/download/v3.20.3/protobuf-all-3.20.3.tar.gz
+        
+        if [ ! -f "protobuf-all-3.20.3.tar.gz" ]; then
+          echo "❌ Failed to download Protobuf"
+          exit 1
+        fi
+        
+        echo "✅ Downloaded protobuf-all-3.20.3.tar.gz"
+        tar -xzf protobuf-all-3.20.3.tar.gz
+        
+        # Le dossier extrait DOIT s'appeler exactement "protobuf-3.20.3"
+        # car CMake cherche: build/local/src/protobuf/protobuf-3.20.3/src/google/protobuf/any.cc
+        
+        echo "✅ Protobuf sources extracted:"
+        ls -la
+        
+        # Vérifier que les fichiers sources existent
+        if [ -f "protobuf-3.20.3/src/google/protobuf/any.cc" ]; then
+          echo "✅ Protobuf source files verified!"
+          ls -lh protobuf-3.20.3/src/google/protobuf/*.cc | head -5
+        else
+          echo "❌ Protobuf source files not found!"
+          find . -name "*.cc" | head -10
+          exit 1
+        fi
+    
     - name: Setup Environment Variables
       run: |
         echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
@@ -140,9 +175,19 @@ jobs:
           cat android/build.gradle
         fi
         
-        echo "=== WALLET-CORE BUILD.GRADLE ==="
+        echo "=== WALLET-CORE BUILD.GRADLE (FULL FILE) ==="
         if [ -f "android/wallet-core/build.gradle" ]; then
-          head -100 android/wallet-core/build.gradle
+          echo "📄 Complete wallet-core/build.gradle content:"
+          cat android/wallet-core/build.gradle
+        else
+          echo "❌ wallet-core/build.gradle not found"
+          echo "Available files in android/wallet-core/:"
+          ls -la android/wallet-core/
+        fi
+        
+        echo "=== WALLET-CORE-PROTO BUILD.GRADLE ==="
+        if [ -f "android/wallet-core-proto/build.gradle" ]; then
+          head -50 android/wallet-core-proto/build.gradle
         fi
     
     - name: Build Wallet Core Android with Gradle
@@ -157,26 +202,27 @@ jobs:
         pwd
         ls -la
         
-        # Essayer UNIQUEMENT le module wallet-core (pas tout le projet)
-        echo "🔨 Building ONLY :wallet-core module..."
-        ./gradlew :wallet-core:assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build.log
+        # D'abord, essayer sans --info pour avoir l'erreur claire
+        echo "🔨 Building ONLY :wallet-core module (standard mode)..."
+        ./gradlew :wallet-core:assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
         BUILD_EXIT_CODE=$?
         
-        # Si échec, essayer avec moins de logs pour voir l'erreur
+        # Si échec, afficher les dernières lignes avec plus de détails
         if [ $BUILD_EXIT_CODE -ne 0 ]; then
-          echo "⚠️ :wallet-core:assembleRelease failed, trying without --info..."
-          ./gradlew :wallet-core:assembleRelease --no-daemon --stacktrace 2>&1 | tail -200 >> build.log
-        fi
-        
-        # Afficher les erreurs
-        if [ $BUILD_EXIT_CODE -ne 0 ]; then
-          echo "❌ BUILD FAILED"
-          echo "=== DERNIÈRES LIGNES DU LOG (150 lignes) ==="
-          tail -150 build.log
-          echo "=== RECHERCHE DES ERREURS (grep) ==="
-          grep -i "error\|failed\|exception" build.log | tail -80
+          echo ""
+          echo "❌ BUILD FAILED - Capturing error details..."
+          echo "=== LAST 200 LINES OF LOG ==="
+          tail -200 build.log
+          echo ""
+          echo "=== SEARCHING FOR ERRORS (grep) ==="
+          grep -i "error\|failed\|exception\|could not" build.log | tail -100 || echo "No explicit errors found"
+          echo ""
+          echo "=== CHECKING FOR CMAKE ERRORS ==="
+          grep -i "cmake\|boost\|native" build.log | tail -50 || echo "No CMake errors found"
         else
           echo "✅ BUILD SUCCESSFUL"
+          echo "=== BUILD COMPLETION TIME ==="
+          grep "BUILD SUCCESSFUL" build.log
         fi
         
         exit $BUILD_EXIT_CODE
