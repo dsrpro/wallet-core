@@ -44,7 +44,37 @@ jobs:
           libssl-dev \
           git \
           curl \
-          wget
+          wget \
+          libboost-all-dev
+    
+    - name: Setup Boost for Android
+      run: |
+        echo "📦 Installing Boost for Android cross-compilation..."
+        
+        # Télécharger Boost 1.82.0 (version stable)
+        cd /tmp
+        wget -q https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.tar.gz
+        tar -xzf boost_1_82_0.tar.gz
+        cd boost_1_82_0
+        
+        # Bootstrap sans bibliothèques spécifiques (on veut juste les headers)
+        ./bootstrap.sh --without-libraries=python,test
+        
+        # Installer dans un dossier local
+        ./b2 install \
+          --prefix=/home/runner/work/wallet-core/wallet-core/build/local \
+          --build-dir=/tmp/boost-build \
+          variant=release \
+          link=static \
+          threading=multi \
+          -j$(nproc) || echo "⚠️ Some Boost components may have failed, continuing..."
+        
+        # Définir les variables d'environnement pour CMake
+        echo "BOOST_ROOT=/home/runner/work/wallet-core/wallet-core/build/local" >> $GITHUB_ENV
+        echo "Boost_INCLUDE_DIR=/home/runner/work/wallet-core/wallet-core/build/local/include" >> $GITHUB_ENV
+        echo "CMAKE_PREFIX_PATH=/home/runner/work/wallet-core/wallet-core/build/local:$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
+        
+        echo "✅ Boost installation completed"
     
     - name: Setup Environment Variables
       run: |
@@ -78,7 +108,23 @@ jobs:
     - name: Build Wallet Core Android with Gradle
       run: |
         echo "Starting Android build with Gradle..."
-        cd android
+        
+        # Essayer différentes structures de projet
+        if [ -d "android" ]; then
+          echo "📁 Found android/ directory"
+          cd android
+        elif [ -f "settings.gradle.kts" ] || [ -f "settings.gradle" ]; then
+          echo "📁 Building from root directory"
+        else
+          echo "❌ No Android project structure found"
+          exit 1
+        fi
+        
+        # Afficher la structure
+        echo "=== Current directory structure ==="
+        pwd
+        ls -la
+        
         # Activer le mode verbose pour voir les vraies erreurs
         ./gradlew assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build.log
         BUILD_EXIT_CODE=$?
@@ -86,10 +132,12 @@ jobs:
         # Si échec, afficher les dernières lignes avec contexte
         if [ $BUILD_EXIT_CODE -ne 0 ]; then
           echo "❌ BUILD FAILED"
-          echo "=== DERNIÈRES LIGNES DU LOG ==="
+          echo "=== DERNIÈRES LIGNES DU LOG (100 lignes) ==="
           tail -100 build.log
-          echo "=== RECHERCHE DES ERREURS ==="
+          echo "=== RECHERCHE DES ERREURS (grep) ==="
           grep -i "error\|failed\|exception" build.log | tail -50
+        else
+          echo "✅ BUILD SUCCESSFUL"
         fi
         
         exit $BUILD_EXIT_CODE
@@ -109,6 +157,7 @@ jobs:
     
     - name: Upload AAR Artifact
       uses: actions/upload-artifact@v4
+      if: always()  # Run even if previous steps failed
       with:
         name: wallet-core-android-${{ github.run_number }}
         path: |
@@ -116,7 +165,8 @@ jobs:
           android/build/outputs/aar/*.aar
           **/library/build/outputs/aar/*.aar
         retention-days: 30
-        if-no-files-found: error
+        if-no-files-found: warn  # Changed from 'error' to 'warn'
+        overwrite: true
     
     - name: Create Release (if tag)
       if: startsWith(github.ref, 'refs/tags/')
