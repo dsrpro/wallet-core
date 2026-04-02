@@ -139,6 +139,68 @@ jobs:
           exit 1
         fi
     
+    - name: Setup Rust for Android Cross-Compilation
+      run: |
+        echo "🦀 Installing Rust for Wallet Core Rust components..."
+        
+        # Installer Rust via rustup
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+        
+        # Ajouter Rust au PATH
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        
+        # Vérifier l'installation
+        rustc --version
+        cargo --version
+        
+        # Ajouter les cibles Android
+        echo "📦 Adding Android targets for Rust..."
+        rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
+        
+        # Installer cargo-ndk pour la compilation Android
+        cargo install cargo-ndk
+        
+        echo "✅ Rust installation complete!"
+    
+    - name: Build Rust Wallet Core Library for Android
+      run: |
+        echo "🔨 Building Rust Wallet Core library for Android..."
+        
+        # Aller dans le dossier rust
+        cd rust
+        
+        # Afficher la structure
+        echo "=== Rust project structure ==="
+        pwd
+        ls -la
+        
+        # Vérifier Cargo.toml
+        if [ -f "Cargo.toml" ]; then
+          echo "✅ Found Cargo.toml"
+          head -30 Cargo.toml
+        else
+          echo "❌ Cargo.toml not found!"
+          exit 1
+        fi
+        
+        # Configurer pour la compilation Android
+        export ANDROID_NDK_HOME=/usr/local/lib/android/sdk/ndk/28.0.12674087
+        export ANDROID_NDK=/usr/local/lib/android/sdk/ndk/28.0.12674087
+        
+        # Compiler pour arm64-v8a (le premier, le plus important)
+        echo "🔨 Compiling for aarch64-linux-android..."
+        cargo ndk -t arm64-v8a -p 23 -o target/aarch64-linux-android build --release
+        
+        # Vérifier que la bibliothèque a été créée
+        if [ -f "target/aarch64-linux-android/release/libwallet_core_rs.a" ]; then
+          echo "✅ Rust library built successfully!"
+          ls -lh target/aarch64-linux-android/release/libwallet_core_rs.a
+        else
+          echo "❌ Rust library not found after build!"
+          find target -name "*.a" -o -name "*.so" | head -20
+          exit 1
+        fi
+    
     - name: Setup Environment Variables
       run: |
         echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
