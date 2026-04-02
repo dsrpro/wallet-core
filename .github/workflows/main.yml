@@ -12,7 +12,7 @@ jobs:
     
     steps:
     - name: Checkout Wallet Core
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         repository: trustwallet/wallet-core
         ref: 4.6.3
@@ -23,9 +23,10 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
+        cache: 'gradle'
     
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@v4
       with:
         cmdline-tools-version: 9.0
         packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;25.2.9519653'
@@ -74,7 +75,7 @@ jobs:
     - name: Upload AAR Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: wallet-core-android
+        name: wallet-core-android-${{ github.run_number }}
         path: build/android/outputs/*.aar
         retention-days: 30
         if-no-files-found: error
