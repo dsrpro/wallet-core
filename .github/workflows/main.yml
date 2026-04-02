@@ -149,45 +149,32 @@ jobs:
       run: |
         echo "Starting Android build with Gradle..."
         
-        # Essayer différentes structures de projet
-        if [ -d "android" ]; then
-          echo "📁 Found android/ directory"
-          cd android
-        elif [ -f "settings.gradle.kts" ] || [ -f "settings.gradle" ]; then
-          echo "📁 Building from root directory"
-        else
-          echo "❌ No Android project structure found"
-          exit 1
-        fi
+        # Aller dans le dossier android
+        cd android
         
         # Afficher la structure
         echo "=== Current directory structure ==="
         pwd
         ls -la
         
-        # Vérifier quels modules sont disponibles
-        echo "=== AVAILABLE MODULES ==="
-        find . -maxdepth 2 -type d -name "*wallet*" -o -name "*library*" -o -name "*app*" | grep -v ".git" | sort
-        
-        # Essayer de compiler TOUS les modules (pas juste wallet-core)
-        echo "🔨 Starting full project build..."
-        ./gradlew assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build.log
+        # Essayer UNIQUEMENT le module wallet-core (pas tout le projet)
+        echo "🔨 Building ONLY :wallet-core module..."
+        ./gradlew :wallet-core:assembleRelease --no-daemon --stacktrace --info 2>&1 | tee build.log
         BUILD_EXIT_CODE=$?
         
-        # Si échec, essayer juste le module library
-        if [ $BUILD_EXIT_CODE -ne 0 ] && [ -d "library" ]; then
-          echo "⚠️ Full build failed, trying just :library module..."
-          ./gradlew :library:assembleRelease --no-daemon --stacktrace 2>&1 | tee build-library.log
-          BUILD_EXIT_CODE=$?
+        # Si échec, essayer avec moins de logs pour voir l'erreur
+        if [ $BUILD_EXIT_CODE -ne 0 ]; then
+          echo "⚠️ :wallet-core:assembleRelease failed, trying without --info..."
+          ./gradlew :wallet-core:assembleRelease --no-daemon --stacktrace 2>&1 | tail -200 >> build.log
         fi
         
-        # Si échec, afficher les dernières lignes avec contexte
+        # Afficher les erreurs
         if [ $BUILD_EXIT_CODE -ne 0 ]; then
           echo "❌ BUILD FAILED"
-          echo "=== DERNIÈRES LIGNES DU LOG (100 lignes) ==="
-          tail -100 build.log
+          echo "=== DERNIÈRES LIGNES DU LOG (150 lignes) ==="
+          tail -150 build.log
           echo "=== RECHERCHE DES ERREURS (grep) ==="
-          grep -i "error\|failed\|exception" build.log | tail -50
+          grep -i "error\|failed\|exception" build.log | tail -80
         else
           echo "✅ BUILD SUCCESSFUL"
         fi
@@ -202,12 +189,18 @@ jobs:
         echo "=== ALL AAR FILES ==="
         find . -name "*.aar" -type f 2>/dev/null | head -50
         
-        # Chercher les dossiers build
-        echo "=== BUILD DIRECTORIES ==="
-        find . -type d -name "build" 2>/dev/null | head -20
-        
-        # Vérifier les chemins attendus
+        # Vérifier les chemins attendus (plusieurs possibilités)
         echo "=== CHECKING EXPECTED PATHS ==="
+        
+        # Chemin 1: wallet-core module
+        if [ -d "android/wallet-core/build/outputs/aar" ]; then
+          echo "✅ Found: android/wallet-core/build/outputs/aar"
+          ls -lh android/wallet-core/build/outputs/aar/
+        else
+          echo "❌ Not found: android/wallet-core/build/outputs/aar"
+        fi
+        
+        # Chemin 2: library module (si existe)
         if [ -d "android/library/build/outputs/aar" ]; then
           echo "✅ Found: android/library/build/outputs/aar"
           ls -lh android/library/build/outputs/aar/
@@ -215,24 +208,18 @@ jobs:
           echo "❌ Not found: android/library/build/outputs/aar"
         fi
         
-        if [ -d "android/build/outputs/aar" ]; then
-          echo "✅ Found: android/build/outputs/aar"
-          ls -lh android/build/outputs/aar/
+        # Chemin 3: app module
+        if [ -d "android/app/build/outputs/aar" ]; then
+          echo "✅ Found: android/app/build/outputs/aar"
+          ls -lh android/app/build/outputs/aar/
         else
-          echo "❌ Not found: android/build/outputs/aar"
-        fi
-        
-        if [ -d "library/build/outputs/aar" ]; then
-          echo "✅ Found: library/build/outputs/aar"
-          ls -lh library/build/outputs/aar/
-        else
-          echo "❌ Not found: library/build/outputs/aar"
+          echo "❌ Not found: android/app/build/outputs/aar"
         fi
         
         # Afficher structure complète si échec
         if [ $(find . -name "*.aar" | wc -l) -eq 0 ]; then
-          echo "⚠️ NO AAR FILES FOUND - Showing full directory structure:"
-          find android -type d 2>/dev/null | head -50 || echo "No android/ directory"
+          echo "⚠️ NO AAR FILES FOUND - Showing build directories:"
+          find . -type d -name "build" | head -20
         fi
     
     - name: Upload AAR Artifact
@@ -241,11 +228,12 @@ jobs:
       with:
         name: wallet-core-android-${{ github.run_number }}
         path: |
+          android/wallet-core/build/outputs/aar/*.aar
           android/library/build/outputs/aar/*.aar
-          android/build/outputs/aar/*.aar
+          **/wallet-core/build/outputs/aar/*.aar
           **/library/build/outputs/aar/*.aar
         retention-days: 30
-        if-no-files-found: warn  # Changed from 'error' to 'warn'
+        if-no-files-found: warn
         overwrite: true
     
     - name: Create Release (if tag)
