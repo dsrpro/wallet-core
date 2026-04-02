@@ -31,6 +31,17 @@ jobs:
         cmdline-tools-version: 9.0
         packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;25.2.9519653'
     
+    - name: Verify Available NDK Versions
+      run: |
+        echo "=== Checking installed NDK versions ==="
+        ls -la /usr/local/lib/android/sdk/ndk/ || echo "No NDK directory yet"
+        
+        # Si le dossier NDK existe, lister les versions
+        if [ -d "/usr/local/lib/android/sdk/ndk" ]; then
+          echo "Available NDK versions:"
+          ls /usr/local/lib/android/sdk/ndk/
+        fi
+    
     - name: Install Dependencies
       run: |
         sudo apt-get update
@@ -166,13 +177,18 @@ jobs:
       run: |
         echo "🔨 Building Rust Wallet Core library for Android..."
         
-        # S'assurer que les variables NDK sont correctes
-        export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/28.0.12674087"
-        export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/28.0.12674087"
-        export ANDROID_NDK="/usr/local/lib/android/sdk/ndk/28.0.12674087"
+        # S'assurer que les variables NDK sont correctes (version 25)
+        export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        export ANDROID_NDK="/usr/local/lib/android/sdk/ndk/25.2.9519653"
         
         echo "✅ Using NDK: $ANDROID_NDK_ROOT"
-        ls -la $ANDROID_NDK_ROOT
+        if [ ! -d "$ANDROID_NDK_ROOT" ]; then
+          echo "❌ NDK not found! Available versions:"
+          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
+          exit 1
+        fi
+        ls -la "$ANDROID_NDK_ROOT" | head -10
         
         # Aller dans le dossier rust
         cd rust
@@ -207,8 +223,18 @@ jobs:
     
     - name: Setup Environment Variables
       run: |
-        # Définir TOUTES les variables NDK pour éviter les conflits
-        export CORRECT_NDK="/usr/local/lib/android/sdk/ndk/28.0.12674087"
+        # Utiliser le NDK installé par android-actions/setup-android (25.2.9519653)
+        export CORRECT_NDK="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        
+        # Vérifier que le NDK existe
+        if [ ! -d "$CORRECT_NDK" ]; then
+          echo "❌ NDK not found at $CORRECT_NDK"
+          echo "Available NDK versions:"
+          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
+          exit 1
+        fi
+        
+        echo "✅ Found NDK at: $CORRECT_NDK"
         
         echo "ANDROID_NDK_HOME=$CORRECT_NDK" >> $GITHUB_ENV
         echo "ANDROID_NDK=$CORRECT_NDK" >> $GITHUB_ENV
@@ -218,10 +244,6 @@ jobs:
         # Ajouter CMake au PATH
         echo "$ANDROID_SDK_ROOT/cmake/3.22.1/bin" >> $GITHUB_PATH
         echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
-        
-        echo "✅ NDK variables set to: $CORRECT_NDK"
-        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT"
     
     - name: Verify NDK Installation
       run: |
