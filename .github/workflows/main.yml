@@ -209,7 +209,7 @@ jobs:
         
         # Compiler pour arm64-v8a (le premier, le plus important)
         echo "🔨 Compiling for aarch64-linux-android..."
-        cargo ndk -t arm64-v8a -p 23 -o target/aarch64-linux-android build --release
+        cargo ndk -t arm64-v8a --platform 23 -o target/aarch64-linux-android build --release
         
         # Vérifier que la bibliothèque a été créée
         if [ -f "target/aarch64-linux-android/release/libwallet_core_rs.a" ]; then
