@@ -51,32 +51,43 @@ jobs:
         echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
         echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
         echo "$ANDROID_SDK_ROOT/cmake/3.22.1/bin" >> $GITHUB_PATH
+        echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
     
     - name: Verify NDK Installation
       run: |
         echo "NDK Path: $ANDROID_NDK_HOME"
         ls -la $ANDROID_NDK_HOME
+        echo "Android SDK contents:"
+        ls -la $ANDROID_SDK_ROOT
     
-    - name: Make Build Script Executable
-      run: chmod +x build.sh
-    
-    - name: Build Wallet Core for Android
+    - name: Build Wallet Core Android with Gradle
       run: |
-        echo "Starting Android build..."
-        ./build.sh android
+        echo "Starting Android build with Gradle..."
+        cd android
+        ./gradlew assembleRelease --no-daemon --stacktrace
         echo "Build completed!"
     
-    - name: List Build Outputs
+    - name: Find Built AAR
       run: |
-        echo "Build outputs:"
-        find build/android/outputs -type f -name "*.aar" || echo "No AAR files found"
-        ls -lh build/android/outputs/ || echo "Output directory not found"
+        echo "Searching for built AAR files..."
+        find . -name "*.aar" -type f | head -20
+        if [ -d "android/library/build/outputs/aar" ]; then
+          echo "Found AAR in library/build/outputs/aar"
+          ls -lh android/library/build/outputs/aar/
+        fi
+        if [ -d "android/build/outputs/aar" ]; then
+          echo "Found AAR in android/build/outputs/aar"
+          ls -lh android/build/outputs/aar/
+        fi
     
     - name: Upload AAR Artifact
       uses: actions/upload-artifact@v4
       with:
         name: wallet-core-android-${{ github.run_number }}
-        path: build/android/outputs/*.aar
+        path: |
+          android/library/build/outputs/aar/*.aar
+          android/build/outputs/aar/*.aar
+          **/library/build/outputs/aar/*.aar
         retention-days: 30
         if-no-files-found: error
     
@@ -84,7 +95,10 @@ jobs:
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
-        files: build/android/outputs/*.aar
+        files: |
+          android/library/build/outputs/aar/*.aar
+          android/build/outputs/aar/*.aar
+          **/library/build/outputs/aar/*.aar
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
