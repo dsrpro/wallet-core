@@ -53,12 +53,38 @@ jobs:
         
         # Télécharger Boost 1.82.0 (version stable)
         cd /tmp
-        wget -q https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.tar.gz
-        tar -xzf boost_1_82_0.tar.gz
-        cd boost_1_82_0
+        
+        # Utiliser le mirror GitHub (plus fiable)
+        wget -q https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0-b2-nodocs.tar.gz \
+          || wget -q https://archives.boost.io/release/1.82.0/source/boost_1_82_0.tar.gz
+        
+        # Vérifier quel fichier a été téléchargé
+        if [ -f "boost-1.82.0-b2-nodocs.tar.gz" ]; then
+          BOOST_FILE="boost-1.82.0-b2-nodocs.tar.gz"
+        elif [ -f "boost_1_82_0.tar.gz" ]; then
+          BOOST_FILE="boost_1_82_0.tar.gz"
+        else
+          echo "❌ Failed to download Boost"
+          ls -la *.tar.gz || echo "No .tar.gz files found"
+          exit 1
+        fi
+        
+        echo "✅ Downloaded: $BOOST_FILE"
+        tar -xzf $BOOST_FILE
+        
+        # Trouver le dossier extrait
+        BOOST_DIR=$(find . -maxdepth 1 -type d -name "boost*" | head -1)
+        if [ -z "$BOOST_DIR" ]; then
+          echo "❌ Could not find extracted Boost directory"
+          ls -la
+          exit 1
+        fi
+        
+        echo "📁 Extracted to: $BOOST_DIR"
+        cd $BOOST_DIR
         
         # Bootstrap sans bibliothèques spécifiques (on veut juste les headers)
-        ./bootstrap.sh --without-libraries=python,test
+        ./bootstrap.sh --without-libraries=python,test || echo "⚠️ Bootstrap warning, continuing..."
         
         # Installer dans un dossier local
         ./b2 install \
@@ -75,6 +101,8 @@ jobs:
         echo "CMAKE_PREFIX_PATH=/home/runner/work/wallet-core/wallet-core/build/local:$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
         
         echo "✅ Boost installation completed"
+        echo "📊 Boost version:"
+        cat boost/version.hpp 2>/dev/null | grep "BOOST_VERSION" | head -1 || echo "Version file not found"
     
     - name: Setup Environment Variables
       run: |
