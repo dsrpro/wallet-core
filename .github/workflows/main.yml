@@ -1,0 +1,87 @@
+name: Build Wallet Core Android AAR
+
+on:
+  workflow_dispatch:  # Permet de lancer manuellement
+  push:
+    tags:
+      - '4.*'
+
+jobs:
+  build-android:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout Wallet Core
+      uses: actions/checkout@v4
+      with:
+        ref: 4.6.3  # Version spécifique à compiler
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        cmdline-tools-version: 9.0
+        packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;25.2.9519653'
+    
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          build-essential \
+          python3 \
+          python3-pip \
+          protobuf-compiler \
+          libprotobuf-dev \
+          libssl-dev \
+          git \
+          curl \
+          wget
+    
+    - name: Setup Environment Variables
+      run: |
+        echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
+        echo "$ANDROID_SDK_ROOT/cmake/3.22.1/bin" >> $GITHUB_PATH
+    
+    - name: Verify NDK Installation
+      run: |
+        echo "NDK Path: $ANDROID_NDK_HOME"
+        ls -la $ANDROID_NDK_HOME
+    
+    - name: Make Build Script Executable
+      run: chmod +x build.sh
+    
+    - name: Build Wallet Core for Android
+      run: |
+        echo "Starting Android build..."
+        ./build.sh android
+        echo "Build completed!"
+    
+    - name: List Build Outputs
+      run: |
+        echo "Build outputs:"
+        find build/android/outputs -type f -name "*.aar" || echo "No AAR files found"
+        ls -lh build/android/outputs/ || echo "Output directory not found"
+    
+    - name: Upload AAR Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: wallet-core-android
+        path: build/android/outputs/*.aar
+        retention-days: 30
+        if-no-files-found: error
+    
+    - name: Create Release (if tag)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: build/android/outputs/*.aar
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
