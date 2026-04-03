@@ -173,6 +173,102 @@ jobs:
         
         echo "✅ Rust installation complete!"
     
+    - name: Generate TWHRP.h Header
+      run: |
+        echo "🔧 Generating TWHRP.h header file..."
+        
+        # TWHRP.h is typically generated from coin definitions
+        # Check if there's a generation script in the repo
+        cd /home/runner/work/wallet-core/wallet-core
+        
+        # Look for generation scripts
+        echo "=== Looking for codegen scripts ==="
+        find . -name "*.py" -o -name "*.swift" | grep -iE "(gen|coin|hrp)" | head -20
+        
+        # Check for coins.json or similar config
+        if [ -f "coins.json" ]; then
+          echo "✅ Found coins.json"
+          head -50 coins.json
+        fi
+        
+        # Check for Makefile or generation target
+        if [ -f "Makefile" ]; then
+          echo "=== Makefile targets ==="
+          grep -E "^(hrp|TWHRP|codegen)" Makefile || echo "No relevant targets found"
+        fi
+        
+        # Try to find where TWHRP.h should be generated
+        echo "=== Checking include directory structure ==="
+        ls -la include/TrustWalletCore/ | head -30
+        
+        # If TWHRP.h doesn't exist, we need to generate it
+        if [ ! -f "include/TrustWalletCore/TWHRP.h" ]; then
+          echo "⚠️ TWHRP.h not found - attempting generation..."
+          
+          # Check for Swift scripts
+          if command -v swift &> /dev/null; then
+            echo "Swift available, looking for generation scripts..."
+            find . -name "*.swift" | xargs grep -l "TWHRP\|HRP" | head -10
+          fi
+          
+          # Common generation approach: look for template
+          if [ -f "include/TrustWalletCore/TWHRP.h.template" ]; then
+            echo "Found template, copying..."
+            cp include/TrustWalletCore/TWHRP.h.template include/TrustWalletCore/TWHRP.h
+          fi
+        else
+          echo "✅ TWHRP.h already exists"
+          head -20 include/TrustWalletCore/TWHRP.h
+        fi
+    
+    - name: Install Bindgen and Generate Rust Headers
+      run: |
+        echo "🦀 Installing Rust bindgen tool..."
+        
+        # Install bindgen CLI
+        cargo install bindgen-cli
+        
+        echo "✅ Bindgen installed: $(bindgen --version)"
+        
+        # Navigate to rust directory
+        cd /home/runner/work/wallet-core/wallet-core/rust
+        
+        # Create output directory for generated headers
+        mkdir -p ../src/rust/bindgen
+        
+        # Check what Rust FFI bindings exist
+        echo "=== Checking Rust FFI source files ==="
+        find src -name "*.rs" | head -20
+        
+        # Look for the main FFI header
+        if [ -f "src/lib.rs" ]; then
+          echo "=== Rust lib.rs structure ==="
+          head -50 src/lib.rs
+        fi
+        
+        # Generate C header from Rust FFI
+        # The typical pattern is to generate from the main library root
+        echo "🔨 Generating WalletCoreRSBindgen.h..."
+        
+        # Try standard bindgen invocation
+        bindgen src/lib.rs \
+          --output ../src/rust/bindgen/WalletCoreRSBindgen.h \
+          --enable-cxx-namespaces \
+          --generate-block \
+          --allowlist-function "wallet_core_.*" \
+          --allowlist-type "WalletCore.*" \
+          2>&1 | tee bindgen.log || echo "⚠️ Bindgen had warnings, checking output..."
+        
+        # Verify generation
+        if [ -f "../src/rust/bindgen/WalletCoreRSBindgen.h" ]; then
+          echo "✅ Generated WalletCoreRSBindgen.h successfully!"
+          head -30 ../src/rust/bindgen/WalletCoreRSBindgen.h
+        else
+          echo "❌ Failed to generate header, checking what went wrong..."
+          cat bindgen.log
+          exit 1
+        fi
+    
     - name: Build Rust Wallet Core Library for Android
       run: |
         echo "🔨 Building Rust Wallet Core library for Android..."
