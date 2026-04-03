@@ -177,16 +177,53 @@ jobs:
       run: |
         echo "🔨 Building Rust Wallet Core library for Android..."
         
-        # NDK variables should already be set from previous step
-        echo "✅ Using NDK: $ANDROID_NDK_ROOT"
+        # 🔑 DÉTECTER DYNAMIQUEMENT LE NDK (COPIÉ DEPUIS L'ÉTAPE PRECEDENTE)
+        if [ -d "/usr/local/lib/android/sdk/ndk/25.2.9519653" ]; then
+          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        elif [ -d "/usr/local/lib/android/sdk/ndk/27.3.13750724" ]; then
+          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/27.3.13750724"
+        elif [ -d "/usr/local/lib/android/sdk/ndk/28.0.12674087" ]; then
+          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/28.0.12674087"
+        else
+          echo "❌ No NDK found! Available versions:"
+          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
+          exit 1
+        fi
+        
+        echo "✅ Using NDK version: $(basename $ANDROID_NDK_ROOT)"
+        
+        export TOOLCHAIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
+        
+        # Set tool paths
+        export AR="$TOOLCHAIN/bin/aarch64-linux-android-ar"
+        export CC="$TOOLCHAIN/bin/aarch64-linux-android23-clang"
+        export CXX="$TOOLCHAIN/bin/aarch64-linux-android23-clang++"
+        export RANLIB="$TOOLCHAIN/bin/aarch64-linux-android-ranlib"
+        
+        # Add toolchain to PATH
+        export PATH="$TOOLCHAIN/bin:$PATH"
+        
+        # Critical: Export variables that Cargo/cc crate expects
+        export AR_aarch64_linux_android="$AR"
+        export CC_aarch64_linux_android="$CC"
+        export CXX_aarch64_linux_android="$CXX"
+        export RANLIB_aarch64_linux_android="$RANLIB"
+        
+        # Also set linker-specific variables
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$AR"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CC="$CC"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CXX="$CXX"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CC"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB="$RANLIB"
+        
         echo "✅ AR tool: $AR"
         echo "✅ CC tool: $CC"
         
-        # Verify tools are available
+        # Verify tools are available BEFORE building
         if [ ! -f "$AR" ]; then
           echo "❌ AR tool not found at: $AR"
           echo "Available tools:"
-          ls -la "$(dirname $AR)" | head -20
+          ls -la "$TOOLCHAIN/bin" | grep aarch64 | head -20
           exit 1
         fi
         
