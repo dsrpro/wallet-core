@@ -244,8 +244,21 @@ jobs:
       run: |
         echo "🔧 Setting up NDK environment for Rust cross-compilation..."
         
-        # NDK path (version 25 installed by setup-android)
-        export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        # Détecter dynamiquement la version de NDK installée
+        if [ -d "/usr/local/lib/android/sdk/ndk/25.2.9519653" ]; then
+          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        elif [ -d "/usr/local/lib/android/sdk/ndk/27.3.13750724" ]; then
+          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/27.3.13750724"
+        elif [ -d "/usr/local/lib/android/sdk/ndk/28.0.12674087" ]; then
+          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/28.0.12674087"
+        else
+          echo "❌ No NDK found! Available versions:"
+          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
+          exit 1
+        fi
+        
+        echo "✅ Using NDK version: $(basename $ANDROID_NDK_ROOT)"
+        
         export TOOLCHAIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
         
         # Verify NDK exists
