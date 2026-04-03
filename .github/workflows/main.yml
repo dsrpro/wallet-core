@@ -174,24 +174,22 @@ jobs:
         echo "✅ Rust installation complete!"
     
     - name: Build Rust Wallet Core Library for Android
+      needs: [Setup NDK Environment for Rust Build]
       run: |
         echo "🔨 Building Rust Wallet Core library for Android..."
         
-        # S'assurer que les variables NDK sont correctes (version 25)
-        export ANDROID_NDK_HOME="/usr/local/lib/android/sdk/ndk/25.2.9519653"
-        export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
-        export ANDROID_NDK="/usr/local/lib/android/sdk/ndk/25.2.9519653"
-        
+        # NDK variables should already be set from previous step
         echo "✅ Using NDK: $ANDROID_NDK_ROOT"
-        if [ ! -d "$ANDROID_NDK_ROOT" ]; then
-          echo "❌ NDK not found! Available versions:"
-          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
+        echo "✅ AR tool: $AR"
+        echo "✅ CC tool: $CC"
+        
+        # Verify tools are available
+        if [ ! -f "$AR" ]; then
+          echo "❌ AR tool not found at: $AR"
+          echo "Available tools:"
+          ls -la "$(dirname $AR)" | head -20
           exit 1
         fi
-        
-        # Configurer le toolchain Rust pour Android
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android23-clang"
-        export CC_aarch64_linux_android="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android23-clang"
         
         # Aller dans le dossier rust
         cd rust
@@ -215,6 +213,15 @@ jobs:
         
         # Compiler pour arm64-v8a avec cargo build standard
         echo "🔨 Compiling for aarch64-linux-android..."
+        echo "Environment check:"
+        echo "  AR=$AR"
+        echo "  CC=$CC"
+        echo "  CXX=$CXX"
+        echo "  AR_aarch64_linux_android=$AR_aarch64_linux_android"
+        echo "  CC_aarch64_linux_android=$CC_aarch64_linux_android"
+        
+        # Build with explicit environment variables
+        # The cc crate will automatically pick up AR_aarch64_linux_android, etc.
         cargo build --release --target aarch64-linux-android -p wallet-core-rs
         
         # Vérifier que la bibliothèque a été créée
@@ -234,29 +241,79 @@ jobs:
           exit 1
         fi
     
-    - name: Setup Environment Variables
+    - name: Setup NDK Environment for Rust Build
       run: |
-        # Utiliser le NDK installé par android-actions/setup-android (25.2.9519653)
-        export CORRECT_NDK="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        echo "🔧 Setting up NDK environment for Rust cross-compilation..."
         
-        # Vérifier que le NDK existe
-        if [ ! -d "$CORRECT_NDK" ]; then
-          echo "❌ NDK not found at $CORRECT_NDK"
-          echo "Available NDK versions:"
-          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
+        # NDK path (version 25 installed by setup-android)
+        export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
+        export TOOLCHAIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
+        
+        # Verify NDK exists
+        if [ ! -d "$TOOLCHAIN/bin" ]; then
+          echo "❌ NDK toolchain not found at: $TOOLCHAIN/bin"
+          ls -la "$ANDROID_NDK_ROOT" || echo "NDK directory missing"
           exit 1
         fi
         
-        echo "✅ Found NDK at: $CORRECT_NDK"
+        # Set tool paths
+        export AR="$TOOLCHAIN/bin/aarch64-linux-android-ar"
+        export CC="$TOOLCHAIN/bin/aarch64-linux-android23-clang"
+        export CXX="$TOOLCHAIN/bin/aarch64-linux-android23-clang++"
+        export RANLIB="$TOOLCHAIN/bin/aarch64-linux-android-ranlib"
+        export STRIP="$TOOLCHAIN/bin/aarch64-linux-android-strip"
         
-        echo "ANDROID_NDK_HOME=$CORRECT_NDK" >> $GITHUB_ENV
-        echo "ANDROID_NDK=$CORRECT_NDK" >> $GITHUB_ENV
-        echo "ANDROID_NDK_ROOT=$CORRECT_NDK" >> $GITHUB_ENV
-        echo "NDK_HOME=$CORRECT_NDK" >> $GITHUB_ENV
+        # Add toolchain to PATH
+        export PATH="$TOOLCHAIN/bin:$PATH"
         
-        # Ajouter CMake au PATH
-        echo "$ANDROID_SDK_ROOT/cmake/3.22.1/bin" >> $GITHUB_PATH
-        echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
+        # Critical: Export variables that Cargo/cc crate expects
+        # These MUST match the format: <TOOL>_<TARGET>
+        export AR_aarch64_linux_android="$AR"
+        export CC_aarch64_linux_android="$CC"
+        export CXX_aarch64_linux_android="$CXX"
+        export RANLIB_aarch64_linux_android="$RANLIB"
+        export STRIP_aarch64_linux_android="$STRIP"
+        
+        # Also set linker-specific variables
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$AR"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CC="$CC"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CXX="$CXX"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CC"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB="$RANLIB"
+        
+        # Write to GITHUB_ENV so they persist in subsequent steps
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+        echo "AR=$AR" >> $GITHUB_ENV
+        echo "CC=$CC" >> $GITHUB_ENV
+        echo "CXX=$CXX" >> $GITHUB_ENV
+        echo "RANLIB=$RANLIB" >> $GITHUB_ENV
+        echo "STRIP=$STRIP" >> $GITHUB_ENV
+        echo "AR_aarch64_linux_android=$AR" >> $GITHUB_ENV
+        echo "CC_aarch64_linux_android=$CC" >> $GITHUB_ENV
+        echo "CXX_aarch64_linux_android=$CXX" >> $GITHUB_ENV
+        echo "RANLIB_aarch64_linux_android=$RANLIB" >> $GITHUB_ENV
+        echo "STRIP_aarch64_linux_android=$STRIP" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_AR=$AR" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_CC=$CC" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_CXX=$CXX" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$CC" >> $GITHUB_ENV
+        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB=$RANLIB" >> $GITHUB_ENV
+        echo "PATH=$PATH" >> $GITHUB_ENV
+        
+        # Verify tools are accessible
+        echo "✅ Verifying NDK tools..."
+        which aarch64-linux-android-ar || echo "⚠️ ar not in PATH"
+        which aarch64-linux-android23-clang || echo "⚠️ clang not in PATH"
+        which aarch64-linux-android-ranlib || echo "⚠️ ranlib not in PATH"
+        
+        # Verify files exist
+        echo "=== Tool verification ==="
+        ls -lh "$AR" || echo "AR tool missing"
+        ls -lh "$CC" || echo "CC tool missing"
+        ls -lh "$CXX" || echo "CXX tool missing"
+        
+        echo "✅ NDK environment configured successfully!"
     
     - name: Verify NDK Installation
       run: |
