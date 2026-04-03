@@ -174,7 +174,6 @@ jobs:
         echo "✅ Rust installation complete!"
     
     - name: Build Rust Wallet Core Library for Android
-      needs: [Setup NDK Environment for Rust Build]
       run: |
         echo "🔨 Building Rust Wallet Core library for Android..."
         
