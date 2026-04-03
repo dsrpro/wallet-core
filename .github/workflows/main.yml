@@ -215,7 +215,7 @@ jobs:
         
         # Compiler pour arm64-v8a avec cargo build standard
         echo "🔨 Compiling for aarch64-linux-android..."
-        cargo build --release --target aarch64-linux-android -p wallet_core_rs
+        cargo build --release --target aarch64-linux-android -p wallet-core-rs
         
         # Vérifier que la bibliothèque a été créée
         echo "=== Searching for built libraries ==="
