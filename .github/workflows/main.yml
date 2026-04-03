@@ -188,7 +188,10 @@ jobs:
           ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
           exit 1
         fi
-        ls -la "$ANDROID_NDK_ROOT" | head -10
+        
+        # Configurer le toolchain Rust pour Android
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android23-clang"
+        export CC_aarch64_linux_android="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android23-clang"
         
         # Aller dans le dossier rust
         cd rust
@@ -207,17 +210,27 @@ jobs:
           exit 1
         fi
         
-        # Compiler pour arm64-v8a (le premier, le plus important)
+        # Installer la cible Android
+        rustup target add aarch64-linux-android
+        
+        # Compiler pour arm64-v8a avec cargo build standard
         echo "🔨 Compiling for aarch64-linux-android..."
-        cargo ndk -t arm64-v8a --platform 23 -o target/aarch64-linux-android build --release
+        cargo build --release --target aarch64-linux-android -p wallet_core_rs
         
         # Vérifier que la bibliothèque a été créée
+        echo "=== Searching for built libraries ==="
+        find target/aarch64-linux-android/release -name "*.a" -o -name "*.so" 2>/dev/null | head -20
+        
         if [ -f "target/aarch64-linux-android/release/libwallet_core_rs.a" ]; then
-          echo "✅ Rust library built successfully!"
+          echo "✅ Rust static library built successfully!"
           ls -lh target/aarch64-linux-android/release/libwallet_core_rs.a
+        elif [ -f "target/aarch64-linux-android/release/libwallet_core_rs.so" ]; then
+          echo "✅ Rust shared library built successfully!"
+          ls -lh target/aarch64-linux-android/release/libwallet_core_rs.so
         else
           echo "❌ Rust library not found after build!"
-          find target -name "*.a" -o -name "*.so" | head -20
+          echo "Available files in target/aarch64-linux-android/release/:"
+          ls -la target/aarch64-linux-android/release/ 2>/dev/null || echo "Directory not found"
           exit 1
         fi
     
