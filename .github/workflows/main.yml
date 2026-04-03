@@ -177,7 +177,7 @@ jobs:
       run: |
         echo "🔨 Building Rust Wallet Core library for Android..."
         
-        # 🔑 DÉTECTER DYNAMIQUEMENT LE NDK (COPIÉ DEPUIS L'ÉTAPE PRECEDENTE)
+        # 🔑 DÉTECTER DYNAMIQUEMENT LE NDK
         if [ -d "/usr/local/lib/android/sdk/ndk/25.2.9519653" ]; then
           export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
         elif [ -d "/usr/local/lib/android/sdk/ndk/27.3.13750724" ]; then
@@ -194,11 +194,34 @@ jobs:
         
         export TOOLCHAIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
         
-        # Set tool paths
-        export AR="$TOOLCHAIN/bin/aarch64-linux-android-ar"
+        # 🎯 MODERN NDK uses llvm-ar, not *-ar
+        # List available tools first
+        echo "=== Available NDK tools ==="
+        ls "$TOOLCHAIN/bin" | grep -E "(ar|llvm-ar|clang)" | head -30
+        
+        # Check which AR tool exists
+        if [ -f "$TOOLCHAIN/bin/llvm-ar" ]; then
+          export AR="$TOOLCHAIN/bin/llvm-ar"
+          echo "✅ Using llvm-ar (modern NDK)"
+        elif [ -f "$TOOLCHAIN/bin/aarch64-linux-android-ar" ]; then
+          export AR="$TOOLCHAIN/bin/aarch64-linux-android-ar"
+          echo "✅ Using aarch64-linux-android-ar (legacy NDK)"
+        else
+          echo "❌ No AR tool found! Checking bin directory:"
+          ls -la "$TOOLCHAIN/bin/" | grep -i ar || echo "No 'ar' files found"
+          exit 1
+        fi
+        
+        # Set compiler and other tools
         export CC="$TOOLCHAIN/bin/aarch64-linux-android23-clang"
         export CXX="$TOOLCHAIN/bin/aarch64-linux-android23-clang++"
-        export RANLIB="$TOOLCHAIN/bin/aarch64-linux-android-ranlib"
+        
+        # Check for ranlib too
+        if [ -f "$TOOLCHAIN/bin/llvm-ranlib" ]; then
+          export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
+        elif [ -f "$TOOLCHAIN/bin/aarch64-linux-android-ranlib" ]; then
+          export RANLIB="$TOOLCHAIN/bin/aarch64-linux-android-ranlib"
+        fi
         
         # Add toolchain to PATH
         export PATH="$TOOLCHAIN/bin:$PATH"
@@ -207,23 +230,25 @@ jobs:
         export AR_aarch64_linux_android="$AR"
         export CC_aarch64_linux_android="$CC"
         export CXX_aarch64_linux_android="$CXX"
-        export RANLIB_aarch64_linux_android="$RANLIB"
+        export RANLIB_aarch64_linux_android="${RANLIB:-$AR}"  # Fallback to AR if not found
         
         # Also set linker-specific variables
         export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$AR"
         export CARGO_TARGET_AARCH64_LINUX_ANDROID_CC="$CC"
         export CARGO_TARGET_AARCH64_LINUX_ANDROID_CXX="$CXX"
         export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CC"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB="$RANLIB"
+        export CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB="${RANLIB:-$AR}"
         
         echo "✅ AR tool: $AR"
         echo "✅ CC tool: $CC"
         
-        # Verify tools are available BEFORE building
+        # Verify tools exist
         if [ ! -f "$AR" ]; then
           echo "❌ AR tool not found at: $AR"
-          echo "Available tools:"
-          ls -la "$TOOLCHAIN/bin" | grep aarch64 | head -20
+          exit 1
+        fi
+        if [ ! -f "$CC" ]; then
+          echo "❌ CC tool not found at: $CC"
           exit 1
         fi
         
