@@ -178,207 +178,199 @@ jobs:
         echo "🔧 Generating missing header files..."
         cd /home/runner/work/wallet-core/wallet-core
         
-        # Create TWHRP.h
+        # Create TWHRP.h using echo commands
         echo "=== Creating TWHRP.h ==="
         mkdir -p include/TrustWalletCore
-        python3 -c "
-import sys
-content = '''// This file is auto-generated from coin registry
-// Generated for Wallet Core Android build
-
-#ifndef TWHRP_H
-#define TWHRP_H
-
-#include <string>
-
-namespace TW {
-
-enum HRP: int {
-    UNKNOWN = 0,
-    BINANCE = 1,
-    BITCOIN = 2,
-    BITCOINCASH = 3,
-    CALLISTO = 4,
-    CARDANO = 5,
-    COSMOS = 6,
-    DASH = 7,
-    DIGIBYTE = 8,
-    DOGECOIN = 9,
-    ETHEREUM = 10,
-    ETHEREUMCLASSIC = 11,
-    ETHEREUMPOW = 12,
-    FIO = 13,
-    GOCHAIN = 14,
-    GROESTLCOIN = 15,
-    ICON = 16,
-    IOV = 17,
-    KAVA = 18,
-    KIN = 19,
-    LITECOIN = 20,
-    MONACOIN = 21,
-    NEAR = 22,
-    NIMIQ = 23,
-    ONTOLOGY = 24,
-    POANETWORK = 25,
-    QTUM = 26,
-    XRP = 27,
-    SOLANA = 28,
-    TERRA = 29,
-    THETA = 30,
-    THUNDERTOKEN = 31,
-    TOMOCHAIN = 32,
-    TRON = 33,
-    VECHAIN = 34,
-    VIACOIN = 35,
-    WANCHAIN = 36,
-    ZCASH = 37,
-    ZELCASH = 38,
-    ZILLIQA = 39,
-    POLYGON = 40,
-    RUNE = 41,
-    TERRAV2 = 42,
-    NATIVEEVMOS = 43,
-    NATIVEOSMOSIS = 44,
-    NATIVECRYPTOORG = 45,
-    NATIVETHORCHAIN = 46,
-    SEI = 47,
-    ACALA = 48,
-    KARURA = 49,
-    REEF = 50,
-    ALGORAND = 51,
-    APTOS = 52,
-    SUI = 53,
-    FILECOIN = 54,
-    ELROND = 55,
-    BANDCHAIN = 56,
-    MULTIVERSX = 57,
-    OASIS = 58,
-    BLUZELLE = 59,
-    IRIS = 60,
-    CRYPTOORG = 61,
-    CELESTIA = 62,
-    STARGAZE = 63,
-    JUNO = 64,
-    STRIDE = 65,
-    AXELAR = 66,
-    CRESCENT = 67,
-    KUJIRA = 68,
-    AGORIC = 69,
-    CARBON = 70,
-    FETCHAI = 71,
-    ASSETMANTLE = 72,
-    SENTINEL = 73,
-    PERSISTENCE = 74,
-    AKASH = 75,
-    STARNAME = 76,
-    BITCANNA = 77,
-    COMDEX = 78,
-    SOMMELIER = 79,
-    UMEE = 80,
-    QUASAR = 81,
-    PROVENANCE = 82,
-    QUICKSILVER = 83,
-    MIGALOO = 84,
-    CHIHUAHUA = 85,
-    NOBLE = 86,
-    INJECTIVE = 87,
-    OSMOSIS = 88,
-    SECRET = 89,
-    NATIVEINJECTIVE = 90,
-    NATIVEKUJIRA = 91,
-    EVMOS = 92,
-    NEUTRON = 93,
-    COREUM = 94,
-    XRPLEDGER = 95,
-    BITCOINTESTNET = 96,
-    LITECOINTESTNET = 97,
-    ECASHTESTNET = 98,
-};
-
-inline std::string hrpName(HRP hrp) {
-    switch (hrp) {
-        case BINANCE: return \"bnb\";
-        case BITCOIN: return \"bc\";
-        case BITCOINCASH: return \"bitcoincash\";
-        case LITECOIN: return \"ltc\";
-        case DOGECOIN: return \"doge\";
-        case COSMOS: return \"cosmos\";
-        case ETHEREUM: return \"eth\";
-        case POLYGON: return \"matic\";
-        case SOLANA: return \"sol\";
-        case TERRA: return \"terra\";
-        case TERRAV2: return \"terra\";
-        case NEAR: return \"near\";
-        case ALGORAND: return \"algo\";
-        default: return \"\";
-    }
-}
-
-} // namespace TW
-
-#endif // TWHRP_H
-'''
-with open('include/TrustWalletCore/TWHRP.h', 'w') as f:
-    f.write(content)
-print('✅ Created TWHRP.h')
-"
+        {
+          echo '// This file is auto-generated from coin registry'
+          echo '// Generated for Wallet Core Android build'
+          echo ''
+          echo '#ifndef TWHRP_H'
+          echo '#define TWHRP_H'
+          echo ''
+          echo '#include <string>'
+          echo ''
+          echo 'namespace TW {'
+          echo ''
+          echo 'enum HRP: int {'
+          echo '    UNKNOWN = 0,'
+          echo '    BINANCE = 1,'
+          echo '    BITCOIN = 2,'
+          echo '    BITCOINCASH = 3,'
+          echo '    CALLISTO = 4,'
+          echo '    CARDANO = 5,'
+          echo '    COSMOS = 6,'
+          echo '    DASH = 7,'
+          echo '    DIGIBYTE = 8,'
+          echo '    DOGECOIN = 9,'
+          echo '    ETHEREUM = 10,'
+          echo '    ETHEREUMCLASSIC = 11,'
+          echo '    ETHEREUMPOW = 12,'
+          echo '    FIO = 13,'
+          echo '    GOCHAIN = 14,'
+          echo '    GROESTLCOIN = 15,'
+          echo '    ICON = 16,'
+          echo '    IOV = 17,'
+          echo '    KAVA = 18,'
+          echo '    KIN = 19,'
+          echo '    LITECOIN = 20,'
+          echo '    MONACOIN = 21,'
+          echo '    NEAR = 22,'
+          echo '    NIMIQ = 23,'
+          echo '    ONTOLOGY = 24,'
+          echo '    POANETWORK = 25,'
+          echo '    QTUM = 26,'
+          echo '    XRP = 27,'
+          echo '    SOLANA = 28,'
+          echo '    TERRA = 29,'
+          echo '    THETA = 30,'
+          echo '    THUNDERTOKEN = 31,'
+          echo '    TOMOCHAIN = 32,'
+          echo '    TRON = 33,'
+          echo '    VECHAIN = 34,'
+          echo '    VIACOIN = 35,'
+          echo '    WANCHAIN = 36,'
+          echo '    ZCASH = 37,'
+          echo '    ZELCASH = 38,'
+          echo '    ZILLIQA = 39,'
+          echo '    POLYGON = 40,'
+          echo '    RUNE = 41,'
+          echo '    TERRAV2 = 42,'
+          echo '    NATIVEEVMOS = 43,'
+          echo '    NATIVEOSMOSIS = 44,'
+          echo '    NATIVECRYPTOORG = 45,'
+          echo '    NATIVETHORCHAIN = 46,'
+          echo '    SEI = 47,'
+          echo '    ACALA = 48,'
+          echo '    KARURA = 49,'
+          echo '    REEF = 50,'
+          echo '    ALGORAND = 51,'
+          echo '    APTOS = 52,'
+          echo '    SUI = 53,'
+          echo '    FILECOIN = 54,'
+          echo '    ELROND = 55,'
+          echo '    BANDCHAIN = 56,'
+          echo '    MULTIVERSX = 57,'
+          echo '    OASIS = 58,'
+          echo '    BLUZELLE = 59,'
+          echo '    IRIS = 60,'
+          echo '    CRYPTOORG = 61,'
+          echo '    CELESTIA = 62,'
+          echo '    STARGAZE = 63,'
+          echo '    JUNO = 64,'
+          echo '    STRIDE = 65,'
+          echo '    AXELAR = 66,'
+          echo '    CRESCENT = 67,'
+          echo '    KUJIRA = 68,'
+          echo '    AGORIC = 69,'
+          echo '    CARBON = 70,'
+          echo '    FETCHAI = 71,'
+          echo '    ASSETMANTLE = 72,'
+          echo '    SENTINEL = 73,'
+          echo '    PERSISTENCE = 74,'
+          echo '    AKASH = 75,'
+          echo '    STARNAME = 76,'
+          echo '    BITCANNA = 77,'
+          echo '    COMDEX = 78,'
+          echo '    SOMMELIER = 79,'
+          echo '    UMEE = 80,'
+          echo '    QUASAR = 81,'
+          echo '    PROVENANCE = 82,'
+          echo '    QUICKSILVER = 83,'
+          echo '    MIGALOO = 84,'
+          echo '    CHIHUAHUA = 85,'
+          echo '    NOBLE = 86,'
+          echo '    INJECTIVE = 87,'
+          echo '    OSMOSIS = 88,'
+          echo '    SECRET = 89,'
+          echo '    NATIVEINJECTIVE = 90,'
+          echo '    NATIVEKUJIRA = 91,'
+          echo '    EVMOS = 92,'
+          echo '    NEUTRON = 93,'
+          echo '    COREUM = 94,'
+          echo '    XRPLEDGER = 95,'
+          echo '    BITCOINTESTNET = 96,'
+          echo '    LITECOINTESTNET = 97,'
+          echo '    ECASHTESTNET = 98,'
+          echo '};'
+          echo ''
+          echo 'inline std::string hrpName(HRP hrp) {'
+          echo '    switch (hrp) {'
+          echo '        case BINANCE: return "bnb";'
+          echo '        case BITCOIN: return "bc";'
+          echo '        case BITCOINCASH: return "bitcoincash";'
+          echo '        case LITECOIN: return "ltc";'
+          echo '        case DOGECOIN: return "doge";'
+          echo '        case COSMOS: return "cosmos";'
+          echo '        case ETHEREUM: return "eth";'
+          echo '        case POLYGON: return "matic";'
+          echo '        case SOLANA: return "sol";'
+          echo '        case TERRA: return "terra";'
+          echo '        case TERRAV2: return "terra";'
+          echo '        case NEAR: return "near";'
+          echo '        case ALGORAND: return "algo";'
+          echo '        default: return "";'
+          echo '    }'
+          echo '}'
+          echo ''
+          echo '} // namespace TW'
+          echo ''
+          echo '#endif // TWHRP_H'
+        } > include/TrustWalletCore/TWHRP.h
+        echo "✅ Created TWHRP.h"
         
-        # Create WalletCoreRSBindgen.h
+        # Create WalletCoreRSBindgen.h using echo commands
         echo "=== Creating WalletCoreRSBindgen.h ==="
         mkdir -p src/rust/bindgen
-        python3 -c "
-import sys
-content = '''// Auto-generated Rust FFI bindings for Wallet Core
-// Generated for Android ARM64 build
-
-#ifndef WALLETCORE_RS_BINDGEN_H
-#define WALLETCORE_RS_BINDGEN_H
-
-#include <stdint.h>
-#include <stddef.h>
-
-#ifdef __cplusplus
-extern \"C\" {
-#endif
-
-// Opaque types for Rust FFI
-typedef struct TWAnyAddress TWAnyAddress;
-typedef struct TWPublicKey TWPublicKey;
-typedef struct TWPrivateKey TWPrivateKey;
-typedef struct TWData TWData;
-typedef struct TWString TWString;
-
-// Function declarations from wallet-core-rs
-TWAnyAddress* wrapTWAnyAddress(TWAnyAddress* anyAddress);
-void deleteTWAnyAddress(TWAnyAddress* anyAddress);
-
-TWPublicKey* wrapTWPublicKey(TWPublicKey* publicKey);
-void deleteTWPublicKey(TWPublicKey* publicKey);
-
-TWPrivateKey* wrapTWPrivateKey(TWPrivateKey* privateKey);
-void deleteTWPrivateKey(TWPrivateKey* privateKey);
-
-// Data management
-TWData* twDataCreateWithBytes(const uint8_t* bytes, size_t size);
-size_t twDataGetSize(const TWData* data);
-const uint8_t* twDataGetBytes(const TWData* data);
-void twDataDelete(TWData* data);
-
-// String management
-TWString* twStringCreateWithUTF8Bytes(const char* bytes);
-const char* twStringGetUTF8Bytes(const TWString* string);
-void twStringDelete(TWString* string);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif // WALLETCORE_RS_BINDGEN_H
-'''
-with open('src/rust/bindgen/WalletCoreRSBindgen.h', 'w') as f:
-    f.write(content)
-print('✅ Created WalletCoreRSBindgen.h')
-"
+        {
+          echo '// Auto-generated Rust FFI bindings for Wallet Core'
+          echo '// Generated for Android ARM64 build'
+          echo ''
+          echo '#ifndef WALLETCORE_RS_BINDGEN_H'
+          echo '#define WALLETCORE_RS_BINDGEN_H'
+          echo ''
+          echo '#include <stdint.h>'
+          echo '#include <stddef.h>'
+          echo ''
+          echo '#ifdef __cplusplus'
+          echo 'extern "C" {'
+          echo '#endif'
+          echo ''
+          echo '// Opaque types for Rust FFI'
+          echo 'typedef struct TWAnyAddress TWAnyAddress;'
+          echo 'typedef struct TWPublicKey TWPublicKey;'
+          echo 'typedef struct TWPrivateKey TWPrivateKey;'
+          echo 'typedef struct TWData TWData;'
+          echo 'typedef struct TWString TWString;'
+          echo ''
+          echo '// Function declarations from wallet-core-rs'
+          echo 'TWAnyAddress* wrapTWAnyAddress(TWAnyAddress* anyAddress);'
+          echo 'void deleteTWAnyAddress(TWAnyAddress* anyAddress);'
+          echo ''
+          echo 'TWPublicKey* wrapTWPublicKey(TWPublicKey* publicKey);'
+          echo 'void deleteTWPublicKey(TWPublicKey* publicKey);'
+          echo ''
+          echo 'TWPrivateKey* wrapTWPrivateKey(TWPrivateKey* privateKey);'
+          echo 'void deleteTWPrivateKey(TWPrivateKey* privateKey);'
+          echo ''
+          echo '// Data management'
+          echo 'TWData* twDataCreateWithBytes(const uint8_t* bytes, size_t size);'
+          echo 'size_t twDataGetSize(const TWData* data);'
+          echo 'const uint8_t* twDataGetBytes(const TWData* data);'
+          echo 'void twDataDelete(TWData* data);'
+          echo ''
+          echo '// String management'
+          echo 'TWString* twStringCreateWithUTF8Bytes(const char* bytes);'
+          echo 'const char* twStringGetUTF8Bytes(const TWString* string);'
+          echo 'void twStringDelete(TWString* string);'
+          echo ''
+          echo '#ifdef __cplusplus'
+          echo '}'
+          echo '#endif'
+          echo ''
+          echo '#endif // WALLETCORE_RS_BINDGEN_H'
+        } > src/rust/bindgen/WalletCoreRSBindgen.h
+        echo "✅ Created WalletCoreRSBindgen.h"
         
         echo ""
         echo "✅ All header files generated successfully!"
