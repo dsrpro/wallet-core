@@ -299,7 +299,7 @@ jobs:
           echo '// Typedef for C compatibility - allows "enum TWHRP" syntax'
           echo 'typedef enum HRP TWHRP;'
           echo ''
-          // Forward declaration of function (not inline to avoid enum forward reference issues)
+          echo '// Forward declaration of function (not inline to avoid enum forward reference issues)'
           echo 'TWHRP TWCoinTypeHRP(enum TWCoinType coin);'
           echo 'inline std::string hrpName(HRP hrp) {'
           echo '    switch (hrp) {'
