@@ -190,7 +190,7 @@ jobs:
           echo ''
           echo '#include <string>'
           echo ''
-          // Forward declaration pour TWCoinType.h
+          echo '// Forward declaration pour TWCoinType.h'
           echo 'namespace TW { enum HRP: int; }'
           echo 'typedef enum TW::HRP TWHRP;'
           echo ''
@@ -344,7 +344,7 @@ jobs:
           echo 'typedef struct TWAnyAddress TWAnyAddress;'
           echo 'typedef struct TWPublicKey TWPublicKey;'
           echo 'typedef struct TWPrivateKey TWPrivateKey;'
-          // TWData et TWString sont déjà définis dans TWString.h - ne pas les redéclarer
+          # TWData et TWString sont déjà définis dans TWString.h - ne pas les redéclarer
           echo ''
           echo '// Function declarations from wallet-core-rs'
           echo 'TWAnyAddress* wrapTWAnyAddress(TWAnyAddress* anyAddress);'
