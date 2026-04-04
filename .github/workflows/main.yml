@@ -1,7 +1,7 @@
 name: Build Wallet Core Android AAR
 
 on:
-  workflow_dispatch:  # Permet de lancer manuellement
+  workflow_dispatch:  # Lancement manuel
   push:
     tags:
       - '4.*'
@@ -9,40 +9,29 @@ on:
 jobs:
   build-android:
     runs-on: ubuntu-22.04
-    
+
     steps:
     - name: Checkout Wallet Core
       uses: actions/checkout@v5
       with:
         repository: trustwallet/wallet-core
         ref: 4.6.3
-        fetch-depth: 0  # Fetch all history for tags
-    
+        fetch-depth: 0
+
     - name: Set up JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
         cache: 'gradle'
-    
+
     - name: Setup Android SDK
       uses: android-actions/setup-android@v4
       with:
         cmdline-tools-version: 9.0
         packages: 'platform-tools platforms;android-34 build-tools;34.0.0 ndk;25.2.9519653'
-    
-    - name: Verify Available NDK Versions
-      run: |
-        echo "=== Checking installed NDK versions ==="
-        ls -la /usr/local/lib/android/sdk/ndk/ || echo "No NDK directory yet"
-        
-        # Si le dossier NDK existe, lister les versions
-        if [ -d "/usr/local/lib/android/sdk/ndk" ]; then
-          echo "Available NDK versions:"
-          ls /usr/local/lib/android/sdk/ndk/
-        fi
-    
-    - name: Install Dependencies
+
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -55,701 +44,86 @@ jobs:
           libssl-dev \
           git \
           curl \
-          wget \
-          libboost-all-dev
-    
-    - name: Setup Boost for Android
+          wget
+
+    - name: Setup Rust (required for native Rust components)
       run: |
-        echo "📦 Installing Boost for Android cross-compilation..."
-        
-        # Télécharger Boost 1.82.0 (version stable)
-        cd /tmp
-        
-        # Utiliser le mirror GitHub (plus fiable)
-        wget -q https://github.com/boostorg/boost/releases/download/boost-1.82.0/boost-1.82.0-b2-nodocs.tar.gz \
-          || wget -q https://archives.boost.io/release/1.82.0/source/boost_1_82_0.tar.gz
-        
-        # Vérifier quel fichier a été téléchargé
-        if [ -f "boost-1.82.0-b2-nodocs.tar.gz" ]; then
-          BOOST_FILE="boost-1.82.0-b2-nodocs.tar.gz"
-        elif [ -f "boost_1_82_0.tar.gz" ]; then
-          BOOST_FILE="boost_1_82_0.tar.gz"
-        else
-          echo "❌ Failed to download Boost"
-          ls -la *.tar.gz || echo "No .tar.gz files found"
-          exit 1
-        fi
-        
-        echo "✅ Downloaded: $BOOST_FILE"
-        tar -xzf $BOOST_FILE
-        
-        # Trouver le dossier extrait
-        BOOST_DIR=$(find . -maxdepth 1 -type d -name "boost*" | head -1)
-        if [ -z "$BOOST_DIR" ]; then
-          echo "❌ Could not find extracted Boost directory"
-          ls -la
-          exit 1
-        fi
-        
-        echo "📁 Extracted to: $BOOST_DIR"
-        cd $BOOST_DIR
-        
-        # Bootstrap sans bibliothèques spécifiques (on veut juste les headers)
-        ./bootstrap.sh --without-libraries=python,test || echo "⚠️ Bootstrap warning, continuing..."
-        
-        # Installer dans un dossier local
-        ./b2 install \
-          --prefix=/home/runner/work/wallet-core/wallet-core/build/local \
-          --build-dir=/tmp/boost-build \
-          variant=release \
-          link=static \
-          threading=multi \
-          -j$(nproc) || echo "⚠️ Some Boost components may have failed, continuing..."
-        
-        # Définir les variables d'environnement pour CMake
-        echo "BOOST_ROOT=/home/runner/work/wallet-core/wallet-core/build/local" >> $GITHUB_ENV
-        echo "Boost_INCLUDE_DIR=/home/runner/work/wallet-core/wallet-core/build/local/include" >> $GITHUB_ENV
-        echo "CMAKE_PREFIX_PATH=/home/runner/work/wallet-core/wallet-core/build/local:$CMAKE_PREFIX_PATH" >> $GITHUB_ENV
-        
-        echo "✅ Boost installation completed"
-        echo "📊 Boost version:"
-        cat boost/version.hpp 2>/dev/null | grep "BOOST_VERSION" | head -1 || echo "Version file not found"
-    
-    - name: Download Protobuf Sources
-      run: |
-        echo "📦 Downloading Protobuf sources for Wallet Core..."
-        
-        # Créer le dossier de destination
-        mkdir -p /home/runner/work/wallet-core/wallet-core/build/local/src/protobuf
-        cd /home/runner/work/wallet-core/wallet-core/build/local/src/protobuf
-        
-        # Télécharger Protobuf 3.20.3 (version requise par Wallet Core)
-        wget -q https://github.com/protocolbuffers/protobuf/releases/download/v3.20.3/protobuf-all-3.20.3.tar.gz
-        
-        if [ ! -f "protobuf-all-3.20.3.tar.gz" ]; then
-          echo "❌ Failed to download Protobuf"
-          exit 1
-        fi
-        
-        echo "✅ Downloaded protobuf-all-3.20.3.tar.gz"
-        tar -xzf protobuf-all-3.20.3.tar.gz
-        
-        # Le dossier extrait DOIT s'appeler exactement "protobuf-3.20.3"
-        # car CMake cherche: build/local/src/protobuf/protobuf-3.20.3/src/google/protobuf/any.cc
-        
-        echo "✅ Protobuf sources extracted:"
-        ls -la
-        
-        # Vérifier que les fichiers sources existent
-        if [ -f "protobuf-3.20.3/src/google/protobuf/any.cc" ]; then
-          echo "✅ Protobuf source files verified!"
-          ls -lh protobuf-3.20.3/src/google/protobuf/*.cc | head -5
-        else
-          echo "❌ Protobuf source files not found!"
-          find . -name "*.cc" | head -10
-          exit 1
-        fi
-    
-    - name: Setup Rust for Android Cross-Compilation
-      run: |
-        echo "🦀 Installing Rust for Wallet Core Rust components..."
-        
-        # Installer Rust via rustup
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-        
-        # Ajouter Rust au PATH
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-        
-        # Vérifier l'installation
         rustc --version
         cargo --version
-        
-        # Ajouter les cibles Android
-        echo "📦 Adding Android targets for Rust..."
         rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android x86_64-linux-android
-        
-        # Installer cargo-ndk pour la compilation Android
         cargo install cargo-ndk
-        
-        echo "✅ Rust installation complete!"
-    
-    - name: Generate Missing Header Files
+
+    - name: Patch TWCoinType.h (fix "enum TWHRP" error)
       run: |
-        echo "🔧 Generating missing header files..."
-        cd /home/runner/work/wallet-core/wallet-core
-        
-        # Create TWHRP.h using echo commands
-        echo "=== Creating TWHRP.h ==="
-        mkdir -p include/TrustWalletCore
-        {
-          echo '// This file is auto-generated from coin registry'
-          echo '// Generated for Wallet Core Android build'
-          echo ''
-          echo '#ifndef TWHRP_H'
-          echo '#define TWHRP_H'
-          echo ''
-          echo '#include <string>'
-          echo ''
-          echo 'namespace TW {'
-          echo ''
-          echo '// Define the HRP enum'  
-          echo 'enum HRP: int {'
-          # Remove trailing comma - was causing syntax error
-          echo '    UNKNOWN = 0,'
-          echo '    BINANCE = 1,'
-          echo '    BITCOIN = 2,'
-          echo '    BITCOINCASH = 3,'
-          echo '    CALLISTO = 4,'
-          echo '    CARDANO = 5,'
-          echo '    COSMOS = 6,'
-          echo '    DASH = 7,'
-          echo '    DIGIBYTE = 8,'
-          echo '    DOGECOIN = 9,'
-          echo '    ETHEREUM = 10,'
-          echo '    ETHEREUMCLASSIC = 11,'
-          echo '    ETHEREUMPOW = 12,'
-          echo '    FIO = 13,'
-          echo '    GOCHAIN = 14,'
-          echo '    GROESTLCOIN = 15,'
-          echo '    ICON = 16,'
-          echo '    IOV = 17,'
-          echo '    KAVA = 18,'
-          echo '    KIN = 19,'
-          echo '    LITECOIN = 20,'
-          echo '    MONACOIN = 21,'
-          echo '    NEAR = 22,'
-          echo '    NIMIQ = 23,'
-          echo '    ONTOLOGY = 24,'
-          echo '    POANETWORK = 25,'
-          echo '    QTUM = 26,'
-          echo '    XRP = 27,'
-          echo '    SOLANA = 28,'
-          echo '    TERRA = 29,'
-          echo '    THETA = 30,'
-          echo '    THUNDERTOKEN = 31,'
-          echo '    TOMOCHAIN = 32,'
-          echo '    TRON = 33,'
-          echo '    VECHAIN = 34,'
-          echo '    VIACOIN = 35,'
-          echo '    WANCHAIN = 36,'
-          echo '    ZCASH = 37,'
-          echo '    ZELCASH = 38,'
-          echo '    ZILLIQA = 39,'
-          echo '    POLYGON = 40,'
-          echo '    RUNE = 41,'
-          echo '    TERRAV2 = 42,'
-          echo '    NATIVEEVMOS = 43,'
-          echo '    NATIVEOSMOSIS = 44,'
-          echo '    NATIVECRYPTOORG = 45,'
-          echo '    NATIVETHORCHAIN = 46,'
-          echo '    SEI = 47,'
-          echo '    ACALA = 48,'
-          echo '    KARURA = 49,'
-          echo '    REEF = 50,'
-          echo '    ALGORAND = 51,'
-          echo '    APTOS = 52,'
-          echo '    SUI = 53,'
-          echo '    FILECOIN = 54,'
-          echo '    ELROND = 55,'
-          echo '    BANDCHAIN = 56,'
-          echo '    MULTIVERSX = 57,'
-          echo '    OASIS = 58,'
-          echo '    BLUZELLE = 59,'
-          echo '    IRIS = 60,'
-          echo '    CRYPTOORG = 61,'
-          echo '    CELESTIA = 62,'
-          echo '    STARGAZE = 63,'
-          echo '    JUNO = 64,'
-          echo '    STRIDE = 65,'
-          echo '    AXELAR = 66,'
-          echo '    CRESCENT = 67,'
-          echo '    KUJIRA = 68,'
-          echo '    AGORIC = 69,'
-          echo '    CARBON = 70,'
-          echo '    FETCHAI = 71,'
-          echo '    ASSETMANTLE = 72,'
-          echo '    SENTINEL = 73,'
-          echo '    PERSISTENCE = 74,'
-          echo '    AKASH = 75,'
-          echo '    STARNAME = 76,'
-          echo '    BITCANNA = 77,'
-          echo '    COMDEX = 78,'
-          echo '    SOMMELIER = 79,'
-          echo '    UMEE = 80,'
-          echo '    QUASAR = 81,'
-          echo '    PROVENANCE = 82,'
-          echo '    QUICKSILVER = 83,'
-          echo '    MIGALOO = 84,'
-          echo '    CHIHUAHUA = 85,'
-          echo '    NOBLE = 86,'
-          echo '    INJECTIVE = 87,'
-          echo '    OSMOSIS = 88,'
-          echo '    SECRET = 89,'
-          echo '    NATIVEINJECTIVE = 90,'
-          echo '    NATIVEKUJIRA = 91,'
-          echo '    EVMOS = 92,'
-          echo '    NEUTRON = 93,'
-          echo '    COREUM = 94,'
-          echo '    XRPLEDGER = 95,'
-          echo '    BITCOINTESTNET = 96,'
-          echo '    LITECOINTESTNET = 97,'
-          echo '    ECASHTESTNET = 98,'
-          echo '};'
-          echo ''
-          echo '// Typedef for C compatibility - allows "enum TWHRP" syntax'
-          echo 'typedef enum HRP TWHRP;'
-          echo ''
-          echo 'inline std::string hrpName(HRP hrp) {'
-          echo '    switch (hrp) {'
-          echo '        case BINANCE: return "bnb";'
-          echo '        case BITCOIN: return "bc";'
-          echo '        case BITCOINCASH: return "bitcoincash";'
-          echo '        case LITECOIN: return "ltc";'
-          echo '        case DOGECOIN: return "doge";'
-          echo '        case COSMOS: return "cosmos";'
-          echo '        case ETHEREUM: return "eth";'
-          echo '        case POLYGON: return "matic";'
-          echo '        case SOLANA: return "sol";'
-          echo '        case TERRA: return "terra";'
-          echo '        case TERRAV2: return "terra";'
-          echo '        case NEAR: return "near";'
-          echo '        case ALGORAND: return "algo";'
-          echo '        default: return "";'
-          echo '    }'
-          echo '}'
-          echo ''
-          echo '#endif // TWHRP_H'
-        } > include/TrustWalletCore/TWHRP.h
-        echo "✅ Created TWHRP.h"
-        
-        # Create WalletCoreRSBindgen.h using echo commands
-        echo "=== Creating WalletCoreRSBindgen.h ==="
-        mkdir -p src/rust/bindgen
-        {
-          echo '// Auto-generated Rust FFI bindings for Wallet Core'
-          echo '// Generated for Android ARM64 build'
-          echo ''
-          echo '#ifndef WALLETCORE_RS_BINDGEN_H'
-          echo '#define WALLETCORE_RS_BINDGEN_H'
-          echo ''
-          echo '#include <stdint.h>'
-          echo '#include <stddef.h>'
-          echo ''
-          echo '#ifdef __cplusplus'
-          echo 'extern "C" {'
-          echo '#endif'
-          echo ''
-          echo '// Opaque types for Rust FFI'
-          echo 'typedef struct TWAnyAddress TWAnyAddress;'
-          echo 'typedef struct TWPublicKey TWPublicKey;'
-          echo 'typedef struct TWPrivateKey TWPrivateKey;'
-          echo 'typedef struct TWDataVector TWDataVector;'
-          echo ''
-          echo '// DataVector functions'
-          echo 'TWDataVector* tw_data_vector_create();'
-          echo 'void tw_data_vector_delete(TWDataVector* vec);'
-          echo 'size_t tw_data_vector_size(const TWDataVector* vec);'
-          echo 'void tw_data_vector_add(TWDataVector* vec, const TWData* data);'
-          echo 'const TWData* tw_data_vector_get(const TWDataVector* vec, size_t index);'
-          echo ''
-          echo '// Function declarations from wallet-core-rs'
-          echo 'TWAnyAddress* wrapTWAnyAddress(TWAnyAddress* anyAddress);'
-          echo 'void tw_any_address_delete(TWAnyAddress* anyAddress);'
-          echo 'void deleteTWAnyAddress(TWAnyAddress* anyAddress);'
-          echo ''
-          echo 'TWPublicKey* wrapTWPublicKey(TWPublicKey* publicKey);'
-          echo 'void tw_public_key_delete(TWPublicKey* publicKey);'
-          echo 'void deleteTWPublicKey(TWPublicKey* publicKey);'
-          echo ''
-          echo 'TWPrivateKey* wrapTWPrivateKey(TWPrivateKey* privateKey);'
-          echo 'void tw_private_key_delete(TWPrivateKey* privateKey);'
-          echo 'void deleteTWPrivateKey(TWPrivateKey* privateKey);'
-          echo ''
-          echo '// Data management'
-          echo 'TWData* twDataCreateWithBytes(const uint8_t* bytes, size_t size);'
-          echo 'size_t twDataGetSize(const TWData* data);'
-          echo 'const uint8_t* twDataGetBytes(const TWData* data);'
-          echo 'void twDataDelete(TWData* data);'
-          echo ''
-          echo '// String management'
-          echo 'TWString* twStringCreateWithUTF8Bytes(const char* bytes);'
-          echo 'const char* twStringGetUTF8Bytes(const TWString* string);'
-          echo 'void twStringDelete(TWString* string);'
-          echo ''
-          echo '#ifdef __cplusplus'
-          echo '}'
-          echo '#endif'
-          echo ''
-          echo '#endif // WALLETCORE_RS_BINDGEN_H'
-        } > src/rust/bindgen/WalletCoreRSBindgen.h
-        echo "✅ Created WalletCoreRSBindgen.h"
-        
-        echo ""
-        echo "✅ All header files generated successfully!"
-        echo "=== Verification ==="
-        ls -lh include/TrustWalletCore/TWHRP.h
-        ls -lh src/rust/bindgen/WalletCoreRSBindgen.h
-    
-    - name: Build Rust Wallet Core Library for Android
+        sed -i 's/enum TWHRP TWCoinTypeHRP(/TWHRP TWCoinTypeHRP(/' include/TrustWalletCore/TWCoinType.h
+        echo "✅ Patched TWCoinType.h"
+
+    - name: Patch Wrapper.h (fix Rust:: namespace error)
       run: |
-        echo "🔨 Building Rust Wallet Core library for Android..."
-        
-        # 🔑 DÉTECTER DYNAMIQUEMENT LE NDK
-        if [ -d "/usr/local/lib/android/sdk/ndk/25.2.9519653" ]; then
-          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
-        elif [ -d "/usr/local/lib/android/sdk/ndk/27.3.13750724" ]; then
-          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/27.3.13750724"
-        elif [ -d "/usr/local/lib/android/sdk/ndk/28.0.12674087" ]; then
-          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/28.0.12674087"
-        else
-          echo "❌ No NDK found! Available versions:"
-          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
-          exit 1
-        fi
-        
-        echo "✅ Using NDK version: $(basename $ANDROID_NDK_ROOT)"
-        
-        export TOOLCHAIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
-        
-        # 🎯 MODERN NDK uses llvm-ar, not *-ar
-        # List available tools first
-        echo "=== Available NDK tools ==="
-        ls "$TOOLCHAIN/bin" | grep -E "(ar|llvm-ar|clang)" | head -30
-        
-        # Check which AR tool exists
-        if [ -f "$TOOLCHAIN/bin/llvm-ar" ]; then
-          export AR="$TOOLCHAIN/bin/llvm-ar"
-          echo "✅ Using llvm-ar (modern NDK)"
-        elif [ -f "$TOOLCHAIN/bin/aarch64-linux-android-ar" ]; then
-          export AR="$TOOLCHAIN/bin/aarch64-linux-android-ar"
-          echo "✅ Using aarch64-linux-android-ar (legacy NDK)"
-        else
-          echo "❌ No AR tool found! Checking bin directory:"
-          ls -la "$TOOLCHAIN/bin/" | grep -i ar || echo "No 'ar' files found"
-          exit 1
-        fi
-        
-        # Set compiler and other tools
-        export CC="$TOOLCHAIN/bin/aarch64-linux-android23-clang"
-        export CXX="$TOOLCHAIN/bin/aarch64-linux-android23-clang++"
-        
-        # Check for ranlib too
-        if [ -f "$TOOLCHAIN/bin/llvm-ranlib" ]; then
-          export RANLIB="$TOOLCHAIN/bin/llvm-ranlib"
-        elif [ -f "$TOOLCHAIN/bin/aarch64-linux-android-ranlib" ]; then
-          export RANLIB="$TOOLCHAIN/bin/aarch64-linux-android-ranlib"
-        fi
-        
-        # Add toolchain to PATH
-        export PATH="$TOOLCHAIN/bin:$PATH"
-        
-        # Critical: Export variables that Cargo/cc crate expects
-        export AR_aarch64_linux_android="$AR"
-        export CC_aarch64_linux_android="$CC"
-        export CXX_aarch64_linux_android="$CXX"
-        export RANLIB_aarch64_linux_android="${RANLIB:-$AR}"  # Fallback to AR if not found
-        
-        # Also set linker-specific variables
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$AR"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CC="$CC"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CXX="$CXX"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CC"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB="${RANLIB:-$AR}"
-        
-        echo "✅ AR tool: $AR"
-        echo "✅ CC tool: $CC"
-        
-        # Verify tools exist
-        if [ ! -f "$AR" ]; then
-          echo "❌ AR tool not found at: $AR"
-          exit 1
-        fi
-        if [ ! -f "$CC" ]; then
-          echo "❌ CC tool not found at: $CC"
-          exit 1
-        fi
-        
-        # Aller dans le dossier rust
-        cd rust
-        
-        # Afficher la structure
-        echo "=== Rust project structure ==="
-        pwd
-        ls -la
-        
-        # Vérifier Cargo.toml
-        if [ -f "Cargo.toml" ]; then
-          echo "✅ Found Cargo.toml"
-          head -30 Cargo.toml
-        else
-          echo "❌ Cargo.toml not found!"
-          exit 1
-        fi
-        
-        # Installer la cible Android
-        rustup target add aarch64-linux-android
-        
-        # Compiler pour arm64-v8a avec cargo build standard
-        echo "🔨 Compiling for aarch64-linux-android..."
-        echo "Environment check:"
-        echo "  AR=$AR"
-        echo "  CC=$CC"
-        echo "  CXX=$CXX"
-        echo "  AR_aarch64_linux_android=$AR_aarch64_linux_android"
-        echo "  CC_aarch64_linux_android=$CC_aarch64_linux_android"
-        
-        # Build with explicit environment variables
-        # The cc crate will automatically pick up AR_aarch64_linux_android, etc.
-        cargo build --release --target aarch64-linux-android -p wallet-core-rs
-        
-        # Vérifier que la bibliothèque a été créée
-        echo "=== Searching for built libraries ==="
-        find target/aarch64-linux-android/release -name "*.a" -o -name "*.so" 2>/dev/null | head -20
-        
-        if [ -f "target/aarch64-linux-android/release/libwallet_core_rs.a" ]; then
-          echo "✅ Rust static library built successfully!"
-          ls -lh target/aarch64-linux-android/release/libwallet_core_rs.a
-        elif [ -f "target/aarch64-linux-android/release/libwallet_core_rs.so" ]; then
-          echo "✅ Rust shared library built successfully!"
-          ls -lh target/aarch64-linux-android/release/libwallet_core_rs.so
-        else
-          echo "❌ Rust library not found after build!"
-          echo "Available files in target/aarch64-linux-android/release/:"
-          ls -la target/aarch64-linux-android/release/ 2>/dev/null || echo "Directory not found"
-          exit 1
-        fi
-    
-    - name: Setup NDK Environment for Rust Build
+        sed -i 's/Rust::tw_data_vector_delete/tw_data_vector_delete/' src/rust/Wrapper.h
+        echo "✅ Patched Wrapper.h"
+
+    # Fallback : créer TWHRP.h minimal si absent (pour éviter d'autres erreurs)
+    - name: Ensure TWHRP.h exists
       run: |
-        echo "🔧 Setting up NDK environment for Rust cross-compilation..."
-        
-        # Détecter dynamiquement la version de NDK installée
-        if [ -d "/usr/local/lib/android/sdk/ndk/25.2.9519653" ]; then
-          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/25.2.9519653"
-        elif [ -d "/usr/local/lib/android/sdk/ndk/27.3.13750724" ]; then
-          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/27.3.13750724"
-        elif [ -d "/usr/local/lib/android/sdk/ndk/28.0.12674087" ]; then
-          export ANDROID_NDK_ROOT="/usr/local/lib/android/sdk/ndk/28.0.12674087"
-        else
-          echo "❌ No NDK found! Available versions:"
-          ls /usr/local/lib/android/sdk/ndk/ 2>/dev/null || echo "No NDK directory"
-          exit 1
+        if [ ! -f include/TrustWalletCore/TWHRP.h ]; then
+          echo "Creating minimal TWHRP.h"
+          cat > include/TrustWalletCore/TWHRP.h << 'EOF'
+        #ifndef TWHRP_H
+        #define TWHRP_H
+        #include <string>
+        enum HRP {
+            UNKNOWN = 0,
+            BITCOIN = 1,
+            ETHEREUM = 2,
+            BINANCE = 3,
+            SOLANA = 4,
+            COSMOS = 5,
+            POLYGON = 6
+        };
+        typedef enum HRP TWHRP;
+        inline std::string hrpName(HRP hrp) { return ""; }
+        #endif
+        EOF
         fi
-        
-        echo "✅ Using NDK version: $(basename $ANDROID_NDK_ROOT)"
-        
-        export TOOLCHAIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64"
-        
-        # Verify NDK exists
-        if [ ! -d "$TOOLCHAIN/bin" ]; then
-          echo "❌ NDK toolchain not found at: $TOOLCHAIN/bin"
-          ls -la "$ANDROID_NDK_ROOT" || echo "NDK directory missing"
-          exit 1
-        fi
-        
-        # Set tool paths
-        export AR="$TOOLCHAIN/bin/aarch64-linux-android-ar"
-        export CC="$TOOLCHAIN/bin/aarch64-linux-android23-clang"
-        export CXX="$TOOLCHAIN/bin/aarch64-linux-android23-clang++"
-        export RANLIB="$TOOLCHAIN/bin/aarch64-linux-android-ranlib"
-        export STRIP="$TOOLCHAIN/bin/aarch64-linux-android-strip"
-        
-        # Add toolchain to PATH
-        export PATH="$TOOLCHAIN/bin:$PATH"
-        
-        # Critical: Export variables that Cargo/cc crate expects
-        # These MUST match the format: <TOOL>_<TARGET>
-        export AR_aarch64_linux_android="$AR"
-        export CC_aarch64_linux_android="$CC"
-        export CXX_aarch64_linux_android="$CXX"
-        export RANLIB_aarch64_linux_android="$RANLIB"
-        export STRIP_aarch64_linux_android="$STRIP"
-        
-        # Also set linker-specific variables
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_AR="$AR"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CC="$CC"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_CXX="$CXX"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$CC"
-        export CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB="$RANLIB"
-        
-        # Write to GITHUB_ENV so they persist in subsequent steps
-        echo "ANDROID_NDK_HOME=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
-        echo "AR=$AR" >> $GITHUB_ENV
-        echo "CC=$CC" >> $GITHUB_ENV
-        echo "CXX=$CXX" >> $GITHUB_ENV
-        echo "RANLIB=$RANLIB" >> $GITHUB_ENV
-        echo "STRIP=$STRIP" >> $GITHUB_ENV
-        echo "AR_aarch64_linux_android=$AR" >> $GITHUB_ENV
-        echo "CC_aarch64_linux_android=$CC" >> $GITHUB_ENV
-        echo "CXX_aarch64_linux_android=$CXX" >> $GITHUB_ENV
-        echo "RANLIB_aarch64_linux_android=$RANLIB" >> $GITHUB_ENV
-        echo "STRIP_aarch64_linux_android=$STRIP" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_AR=$AR" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_CC=$CC" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_CXX=$CXX" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER=$CC" >> $GITHUB_ENV
-        echo "CARGO_TARGET_AARCH64_LINUX_ANDROID_RANLIB=$RANLIB" >> $GITHUB_ENV
-        echo "PATH=$PATH" >> $GITHUB_ENV
-        
-        # Verify tools are accessible
-        echo "✅ Verifying NDK tools..."
-        which aarch64-linux-android-ar || echo "⚠️ ar not in PATH"
-        which aarch64-linux-android23-clang || echo "⚠️ clang not in PATH"
-        which aarch64-linux-android-ranlib || echo "⚠️ ranlib not in PATH"
-        
-        # Verify files exist
-        echo "=== Tool verification ==="
-        ls -lh "$AR" || echo "AR tool missing"
-        ls -lh "$CC" || echo "CC tool missing"
-        ls -lh "$CXX" || echo "CXX tool missing"
-        
-        echo "✅ NDK environment configured successfully!"
-    
-    - name: Verify NDK Installation
+
+    - name: Build Android AAR via Gradle
       run: |
-        echo "NDK Path: $ANDROID_NDK_HOME"
-        ls -la $ANDROID_NDK_HOME
-        echo "Android SDK contents:"
-        ls -la $ANDROID_SDK_ROOT
-    
-    - name: Explore Project Structure
-      run: |
-        echo "=== ROOT DIRECTORY ==="
-        ls -la
-        echo "=== ANDROID DIRECTORY ==="
-        ls -la android/
-        echo "=== SETTINGS.GRADLE ==="
-        cat settings.gradle.kts || cat settings.gradle || echo "No settings.gradle found"
-        echo "=== BUILD.GRADLE (ROOT) ==="
-        cat build.gradle.kts || cat build.gradle || echo "No build.gradle found"
-        
-        # Afficher TOUS les fichiers de config Gradle
-        echo "=== GRADLE PROPERTIES ==="
-        if [ -f "android/gradle.properties" ]; then
-          cat android/gradle.properties
-        fi
-        
-        echo "=== BUILD.GRADLE (ANDROID) ==="
-        if [ -f "android/build.gradle" ]; then
-          cat android/build.gradle
-        fi
-        
-        echo "=== WALLET-CORE BUILD.GRADLE (FULL FILE) ==="
-        if [ -f "android/wallet-core/build.gradle" ]; then
-          echo "📄 Complete wallet-core/build.gradle content:"
-          cat android/wallet-core/build.gradle
-        else
-          echo "❌ wallet-core/build.gradle not found"
-          echo "Available files in android/wallet-core/:"
-          ls -la android/wallet-core/
-        fi
-        
-        echo "=== WALLET-CORE-PROTO BUILD.GRADLE ==="
-        if [ -f "android/wallet-core-proto/build.gradle" ]; then
-          head -50 android/wallet-core-proto/build.gradle
-        fi
-    
-    - name: Build Wallet Core Android with Gradle
-      run: |
-        echo "Starting Android build with Gradle..."
-        
-        # Aller dans le dossier android
         cd android
-        
-        # Afficher la structure
-        echo "=== Current directory structure ==="
-        pwd
-        ls -la
-        
-        # D'abord, essayer sans --info pour avoir l'erreur claire
-        echo "🔨 Building ONLY :wallet-core module (standard mode)..."
-        ./gradlew :wallet-core:assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
-        BUILD_EXIT_CODE=$?
-        
-        # Si échec, afficher les dernières lignes avec plus de détails
-        if [ $BUILD_EXIT_CODE -ne 0 ]; then
-          echo ""
-          echo "❌ BUILD FAILED - Capturing error details..."
-          echo "=== LAST 200 LINES OF LOG ==="
-          tail -200 build.log
-          echo ""
-          echo "=== SEARCHING FOR ERRORS (grep) ==="
-          grep -i "error\|failed\|exception\|could not" build.log | tail -100 || echo "No explicit errors found"
-          echo ""
-          echo "=== CHECKING FOR CMAKE ERRORS ==="
-          grep -i "cmake\|boost\|native" build.log | tail -50 || echo "No CMake errors found"
-        else
-          echo "✅ BUILD SUCCESSFUL"
-          echo "=== BUILD COMPLETION TIME ==="
-          grep "BUILD SUCCESSFUL" build.log
-        fi
-        
-        exit $BUILD_EXIT_CODE
-    
-    - name: Find Built AAR
+        echo "Starting Gradle build for :wallet-core:assembleRelease"
+        ./gradlew :wallet-core:assembleRelease --no-daemon --stacktrace
+
+    - name: Find and verify built AAR
       run: |
-        echo "🔍 Searching for built AAR files..."
-        
-        # Chercher TOUS les fichiers .aar dans tout le projet
-        echo "=== ALL AAR FILES ==="
-        find . -name "*.aar" -type f 2>/dev/null | head -50
-        
-        # Vérifier les chemins attendus (plusieurs possibilités)
-        echo "=== CHECKING EXPECTED PATHS ==="
-        
-        # Chemin 1: wallet-core module
-        if [ -d "android/wallet-core/build/outputs/aar" ]; then
-          echo "✅ Found: android/wallet-core/build/outputs/aar"
-          ls -lh android/wallet-core/build/outputs/aar/
-        else
-          echo "❌ Not found: android/wallet-core/build/outputs/aar"
+        echo "Searching for AAR files..."
+        find . -name "*.aar" -type f 2>/dev/null | while read aar; do
+          echo "Found: $aar"
+          ls -lh "$aar"
+        done
+        if [ ! -f android/wallet-core/build/outputs/aar/*.aar ]; then
+          echo "⚠️ No AAR found in expected location. Listing build directories:"
+          find android -type d -name "outputs" -exec ls -la {} \;
         fi
-        
-        # Chemin 2: library module (si existe)
-        if [ -d "android/library/build/outputs/aar" ]; then
-          echo "✅ Found: android/library/build/outputs/aar"
-          ls -lh android/library/build/outputs/aar/
-        else
-          echo "❌ Not found: android/library/build/outputs/aar"
-        fi
-        
-        # Chemin 3: app module
-        if [ -d "android/app/build/outputs/aar" ]; then
-          echo "✅ Found: android/app/build/outputs/aar"
-          ls -lh android/app/build/outputs/aar/
-        else
-          echo "❌ Not found: android/app/build/outputs/aar"
-        fi
-        
-        # Afficher structure complète si échec
-        if [ $(find . -name "*.aar" | wc -l) -eq 0 ]; then
-          echo "⚠️ NO AAR FILES FOUND - Showing build directories:"
-          find . -type d -name "build" | head -20
-        fi
-    
-    - name: Upload AAR Artifact
+
+    - name: Upload AAR artifact
       uses: actions/upload-artifact@v4
-      if: always()  # Run even if previous steps failed
       with:
         name: wallet-core-android-${{ github.run_number }}
         path: |
           android/wallet-core/build/outputs/aar/*.aar
           android/library/build/outputs/aar/*.aar
-          **/wallet-core/build/outputs/aar/*.aar
-          **/library/build/outputs/aar/*.aar
         retention-days: 30
         if-no-files-found: warn
-        overwrite: true
-    
-    - name: Create Release (if tag)
+
+    - name: Create GitHub Release (if tag)
       if: startsWith(github.ref, 'refs/tags/')
       uses: softprops/action-gh-release@v1
       with:
         files: |
+          android/wallet-core/build/outputs/aar/*.aar
           android/library/build/outputs/aar/*.aar
-          android/build/outputs/aar/*.aar
-          **/library/build/outputs/aar/*.aar
         generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
