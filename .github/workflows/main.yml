@@ -179,12 +179,19 @@ jobs:
         
         cd /home/runner/work/wallet-core/wallet-core
         
-        # ========================================
-        # 1. TWHRP.h - Generate complete enum with all coins
-        # ========================================
-        echo "=== Creating TWHRP.h ==="
-        mkdir -p include/TrustWalletCore
-        cat > include/TrustWalletCore/TWHRP.h << 'TWHRP_EOF'
+        # Create a temporary script to generate headers
+        cat > /tmp/generate_headers.sh << 'SCRIPT_EOF'
+#!/bin/bash
+set -e
+
+cd /home/runner/work/wallet-core/wallet-core
+
+# ========================================
+# 1. TWHRP.h - Generate complete enum with all coins
+# ========================================
+echo "=== Creating TWHRP.h ==="
+mkdir -p include/TrustWalletCore
+cat > include/TrustWalletCore/TWHRP.h << 'EOF'
 // This file is auto-generated from coin registry
 // Generated for Wallet Core Android build
 
@@ -319,16 +326,16 @@ inline std::string hrpName(HRP hrp) {
 } // namespace TW
 
 #endif // TWHRP_H
-TWHRP_EOF
-        echo "✅ Created TWHRP.h"
-        
-        # ========================================
-        # 2. WalletCoreRSBindgen.h - Complete Rust FFI bindings
-        # ========================================
-        echo ""
-        echo "=== Creating WalletCoreRSBindgen.h ==="
-        mkdir -p src/rust/bindgen
-        cat > src/rust/bindgen/WalletCoreRSBindgen.h << 'BINDGEN_EOF'
+EOF
+echo "✅ Created TWHRP.h"
+
+# ========================================
+# 2. WalletCoreRSBindgen.h - Complete Rust FFI bindings
+# ========================================
+echo ""
+echo "=== Creating WalletCoreRSBindgen.h ==="
+mkdir -p src/rust/bindgen
+cat > src/rust/bindgen/WalletCoreRSBindgen.h << 'EOF'
 // Auto-generated Rust FFI bindings for Wallet Core
 // Generated for Android ARM64 build
 
@@ -375,14 +382,19 @@ void twStringDelete(TWString* string);
 #endif
 
 #endif // WALLETCORE_RS_BINDGEN_H
-BINDGEN_EOF
-        echo "✅ Created WalletCoreRSBindgen.h"
-        
-        echo ""
-        echo "✅ All header files generated successfully!"
-        echo "=== Verification ==="
-        ls -lh include/TrustWalletCore/TWHRP.h
-        ls -lh src/rust/bindgen/WalletCoreRSBindgen.h
+EOF
+echo "✅ Created WalletCoreRSBindgen.h"
+
+echo ""
+echo "✅ All header files generated successfully!"
+echo "=== Verification ==="
+ls -lh include/TrustWalletCore/TWHRP.h
+ls -lh src/rust/bindgen/WalletCoreRSBindgen.h
+
+SCRIPT_EOF
+
+        chmod +x /tmp/generate_headers.sh
+        bash /tmp/generate_headers.sh
     
     - name: Build Rust Wallet Core Library for Android
       run: |
