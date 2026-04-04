@@ -200,7 +200,7 @@ jobs:
           echo 'namespace TW {'
           echo ''
           echo '// Define the HRP enum - this implements the forward-declared enum TWHRP'
-          echo 'enum HRP: int {
+          echo 'enum HRP: int {'
           # Remove trailing comma - was causing syntax error
           echo '    UNKNOWN = 0,'
           echo '    BINANCE = 1,'
