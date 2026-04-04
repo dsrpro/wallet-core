@@ -176,23 +176,14 @@ jobs:
     - name: Generate Missing Header Files
       run: |
         echo "🔧 Generating missing header files..."
-        
         cd /home/runner/work/wallet-core/wallet-core
         
-        # Create a temporary script to generate headers
-        cat > /tmp/generate_headers.sh << 'SCRIPT_EOF'
-#!/bin/bash
-set -e
-
-cd /home/runner/work/wallet-core/wallet-core
-
-# ========================================
-# 1. TWHRP.h - Generate complete enum with all coins
-# ========================================
-echo "=== Creating TWHRP.h ==="
-mkdir -p include/TrustWalletCore
-cat > include/TrustWalletCore/TWHRP.h << 'EOF'
-// This file is auto-generated from coin registry
+        # Create TWHRP.h
+        echo "=== Creating TWHRP.h ==="
+        mkdir -p include/TrustWalletCore
+        python3 -c "
+import sys
+content = '''// This file is auto-generated from coin registry
 // Generated for Wallet Core Android build
 
 #ifndef TWHRP_H
@@ -306,37 +297,38 @@ enum HRP: int {
 
 inline std::string hrpName(HRP hrp) {
     switch (hrp) {
-        case BINANCE: return "bnb";
-        case BITCOIN: return "bc";
-        case BITCOINCASH: return "bitcoincash";
-        case LITECOIN: return "ltc";
-        case DOGECOIN: return "doge";
-        case COSMOS: return "cosmos";
-        case ETHEREUM: return "eth";
-        case POLYGON: return "matic";
-        case SOLANA: return "sol";
-        case TERRA: return "terra";
-        case TERRAV2: return "terra";
-        case NEAR: return "near";
-        case ALGORAND: return "algo";
-        default: return "";
+        case BINANCE: return \"bnb\";
+        case BITCOIN: return \"bc\";
+        case BITCOINCASH: return \"bitcoincash\";
+        case LITECOIN: return \"ltc\";
+        case DOGECOIN: return \"doge\";
+        case COSMOS: return \"cosmos\";
+        case ETHEREUM: return \"eth\";
+        case POLYGON: return \"matic\";
+        case SOLANA: return \"sol\";
+        case TERRA: return \"terra\";
+        case TERRAV2: return \"terra\";
+        case NEAR: return \"near\";
+        case ALGORAND: return \"algo\";
+        default: return \"\";
     }
 }
 
 } // namespace TW
 
 #endif // TWHRP_H
-EOF
-echo "✅ Created TWHRP.h"
-
-# ========================================
-# 2. WalletCoreRSBindgen.h - Complete Rust FFI bindings
-# ========================================
-echo ""
-echo "=== Creating WalletCoreRSBindgen.h ==="
-mkdir -p src/rust/bindgen
-cat > src/rust/bindgen/WalletCoreRSBindgen.h << 'EOF'
-// Auto-generated Rust FFI bindings for Wallet Core
+'''
+with open('include/TrustWalletCore/TWHRP.h', 'w') as f:
+    f.write(content)
+print('✅ Created TWHRP.h')
+"
+        
+        # Create WalletCoreRSBindgen.h
+        echo "=== Creating WalletCoreRSBindgen.h ==="
+        mkdir -p src/rust/bindgen
+        python3 -c "
+import sys
+content = '''// Auto-generated Rust FFI bindings for Wallet Core
 // Generated for Android ARM64 build
 
 #ifndef WALLETCORE_RS_BINDGEN_H
@@ -346,7 +338,7 @@ cat > src/rust/bindgen/WalletCoreRSBindgen.h << 'EOF'
 #include <stddef.h>
 
 #ifdef __cplusplus
-extern "C" {
+extern \"C\" {
 #endif
 
 // Opaque types for Rust FFI
@@ -382,19 +374,17 @@ void twStringDelete(TWString* string);
 #endif
 
 #endif // WALLETCORE_RS_BINDGEN_H
-EOF
-echo "✅ Created WalletCoreRSBindgen.h"
-
-echo ""
-echo "✅ All header files generated successfully!"
-echo "=== Verification ==="
-ls -lh include/TrustWalletCore/TWHRP.h
-ls -lh src/rust/bindgen/WalletCoreRSBindgen.h
-
-SCRIPT_EOF
-
-        chmod +x /tmp/generate_headers.sh
-        bash /tmp/generate_headers.sh
+'''
+with open('src/rust/bindgen/WalletCoreRSBindgen.h', 'w') as f:
+    f.write(content)
+print('✅ Created WalletCoreRSBindgen.h')
+"
+        
+        echo ""
+        echo "✅ All header files generated successfully!"
+        echo "=== Verification ==="
+        ls -lh include/TrustWalletCore/TWHRP.h
+        ls -lh src/rust/bindgen/WalletCoreRSBindgen.h
     
     - name: Build Rust Wallet Core Library for Android
       run: |
